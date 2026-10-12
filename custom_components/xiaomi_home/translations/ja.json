@@ -24,7 +24,8 @@
                 "description": "## 使用方法の紹介\r\n### ネットワーク検出アドレス\r\nネットワークが正常に機能しているかどうかを確認するために使用されます。設定されていない場合、システムのデフォルトアドレスが使用されます。デフォルトアドレスのチェックが失敗した場合は、カスタムアドレスを入力してみてください。\r\n- 複数の検出アドレスを入力できます。アドレスはコンマで区切ります。例：`8.8.8.8,{bing_url}`\r\n- IPアドレスの場合、pingによる検出が行われます。HTTP(s)アドレスの場合、HTTP GETリクエストによる検出が行われます。\r\n- システムのデフォルト検出アドレスを復元する場合は、カンマ `,` を入力して「次へ」をクリックしてください。\r\n- **この設定はグローバルであり、変更は他の統合インスタンスに影響を与えます。慎重に変更してください。**\r\n### ネットワーク依存関係のチェック\r\n次のネットワーク依存関係がアクセス可能かどうかを順番に確認します。関連するアドレスにアクセスできない場合、統合に問題が発生します。\r\n- OAuth2 認証アドレス: `{oauth2_auth_url}`.\r\n- Xiaomi HTTP API アドレス: `https://{http_host}/app/v2/ha/oauth/get_token`.\r\n- Xiaomi SPEC API アドレス: `{spec_api_url}`.\r\n- Xiaomi MQTT ブローカーアドレス: `mqtts://{broker_host}`.",
                 "data": {
                     "network_detect_addr": "ネットワーク検出アドレス",
-                    "check_network_deps": "ネットワーク依存関係のチェック"
+                    "check_network_deps": "ネットワーク依存関係のチェック",
+                    "disable_network_probes": "Disable network probes"
                 }
             },
             "oauth_error": {
@@ -179,7 +180,8 @@
                 "description": "## 使用方法の紹介\r\n### ネットワーク検出アドレス\r\nネットワークが正常に機能しているかどうかを確認するために使用されます。設定されていない場合、システムのデフォルトアドレスが使用されます。デフォルトアドレスのチェックが失敗した場合は、カスタムアドレスを入力してみてください。\r\n- 複数の検出アドレスを入力できます。アドレスはコンマで区切ります。例：`8.8.8.8,{bing_url}`\r\n- IPアドレスの場合、pingによる検出が行われます。HTTP(s)アドレスの場合、HTTP GETリクエストによる検出が行われます。\r\n- システムのデフォルト検出アドレスを復元する場合は、カンマ `,` を入力して「次へ」をクリックしてください。\r\n- **この設定はグローバルであり、変更は他の統合インスタンスに影響を与えます。慎重に変更してください。**\r\n### ネットワーク依存関係のチェック\r\n次のネットワーク依存関係がアクセス可能かどうかを順番に確認します。関連するアドレスにアクセスできない場合、統合に問題が発生します。\r\n- OAuth2 認証アドレス: `{oauth2_auth_url}`.\r\n- Xiaomi HTTP API アドレス: `https://{http_host}/app/v2/ha/oauth/get_token`.\r\n- Xiaomi SPEC API アドレス: `{spec_api_url}`.\r\n- Xiaomi MQTT ブローカーアドレス: `mqtts://{broker_host}`.",
                 "data": {
                     "network_detect_addr": "ネットワーク検出アドレス",
-                    "check_network_deps": "ネットワーク依存関係のチェック"
+                    "check_network_deps": "ネットワーク依存関係のチェック",
+                    "disable_network_probes": "Disable network probes"
                 }
             },
             "config_confirm": {

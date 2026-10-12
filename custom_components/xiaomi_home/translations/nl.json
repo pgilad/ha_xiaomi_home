@@ -24,7 +24,8 @@
                 "description": "## Gebruiksinstructie\r\n### Netwerkdetectieadres\r\nWordt gebruikt om te controleren of het netwerk correct functioneert. Als dit niet is ingesteld, wordt het standaardadres van het systeem gebruikt. Als de standaardadrescontrole mislukt, kunt u proberen een aangepast adres in te voeren.\r\n- U kunt meerdere detectieadressen invoeren, gescheiden door komma's, zoals `8.8.8.8,{bing_url}`\r\n- Als het een IP-adres is, wordt de detectie uitgevoerd via ping. Als het een HTTP(s)-adres is, wordt de detectie uitgevoerd via een HTTP GET-verzoek.\r\n- Als u het standaarddetectieadres van het systeem wilt herstellen, voert u een komma `,` in en klikt u op 'Volgende'.\r\n- **Deze configuratie is globaal en wijzigingen zullen andere integratie-instanties beïnvloeden. Wijzig met voorzichtigheid.**\r\n### Controleer Netwerkafhankelijkheden\r\nControleer een voor een de volgende netwerkafhankelijkheden om te zien of ze toegankelijk zijn. Als de gerelateerde adressen niet toegankelijk zijn, zal dit integratieproblemen veroorzaken.\r\n- OAuth2-authenticatieadres: `{oauth2_auth_url}`.\r\n- Xiaomi HTTP API-adres: `https://{http_host}/app/v2/ha/oauth/get_token`.\r\n- Xiaomi SPEC API-adres: `{spec_api_url}`.\r\n- Xiaomi MQTT Broker-adres: `mqtts://{broker_host}`.",
                 "data": {
                     "network_detect_addr": "Netwerkdetectieadres",
-                    "check_network_deps": "Controleer Netwerkafhankelijkheden"
+                    "check_network_deps": "Controleer Netwerkafhankelijkheden",
+                    "disable_network_probes": "Disable network probes"
                 }
             },
             "oauth_error": {
@@ -179,7 +180,8 @@
                 "description": "## Gebruiksinstructie\r\n### Netwerkdetectieadres\r\nWordt gebruikt om te controleren of het netwerk correct functioneert. Als dit niet is ingesteld, wordt het standaardadres van het systeem gebruikt. Als de standaardadrescontrole mislukt, kunt u proberen een aangepast adres in te voeren.\r\n- U kunt meerdere detectieadressen invoeren, gescheiden door komma's, zoals `8.8.8.8,{bing_url}`\r\n- Als het een IP-adres is, wordt de detectie uitgevoerd via ping. Als het een HTTP(s)-adres is, wordt de detectie uitgevoerd via een HTTP GET-verzoek.\r\n- Als u het standaarddetectieadres van het systeem wilt herstellen, voert u een komma `,` in en klikt u op 'Volgende'.\r\n- **Deze configuratie is globaal en wijzigingen zullen andere integratie-instanties beïnvloeden. Wijzig met voorzichtigheid.**\r\n### Controleer Netwerkafhankelijkheden\r\nControleer een voor een de volgende netwerkafhankelijkheden om te zien of ze toegankelijk zijn. Als de gerelateerde adressen niet toegankelijk zijn, zal dit integratieproblemen veroorzaken.\r\n- OAuth2-authenticatieadres: `{oauth2_auth_url}`.\r\n- Xiaomi HTTP API-adres: `https://{http_host}/app/v2/ha/oauth/get_token`.\r\n- Xiaomi SPEC API-adres: `{spec_api_url}`.\r\n- Xiaomi MQTT Broker-adres: `mqtts://{broker_host}`.",
                 "data": {
                     "network_detect_addr": "Netwerkdetectieadres",
-                    "check_network_deps": "Controleer Netwerkafhankelijkheden"
+                    "check_network_deps": "Controleer Netwerkafhankelijkheden",
+                    "disable_network_probes": "Disable network probes"
                 }
             },
             "config_confirm": {

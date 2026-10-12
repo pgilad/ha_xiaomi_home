@@ -119,10 +119,11 @@ class MIoTNetwork:
         self._main_loop = loop or asyncio.get_running_loop()
         self._ip_addr_map = {
             ip: self._DETECT_TIMEOUT for ip in
-            ip_addr_list or self._IP_ADDRESS_LIST}
+            (self._IP_ADDRESS_LIST if ip_addr_list is None else ip_addr_list)}
         self._http_addr_map = {
             url: self._DETECT_TIMEOUT for url in
-            url_addr_list or self._URL_ADDRESS_LIST}
+            (self._URL_ADDRESS_LIST if url_addr_list is None
+             else url_addr_list)}
         self._http_session = aiohttp.ClientSession()
         self._refresh_interval = refresh_interval or self._REFRESH_INTERVAL
 
@@ -165,20 +166,44 @@ class MIoTNetwork:
     def network_info(self) -> dict[str, NetworkInfo]:
         return self._network_info
 
+    @property
+    def local_network_available(self) -> bool:
+        """Local interfaces can be available while cloud probes fail."""
+        return bool(self._network_info)
+
+    @property
+    def probes_enabled(self) -> bool:
+        """Report whether an external availability check is configured."""
+        return bool(self._ip_addr_map or self._http_addr_map)
+
+    @staticmethod
+    def get_probe_addresses(config: dict) -> tuple[
+        Optional[list[str]], Optional[list[str]]
+    ]:
+        """Keep legacy default settings and explicit disabling distinct."""
+        if config.get('disabled', False):
+            return [], []
+        ip_list, url_list = config.get('ip'), config.get('url')
+        if not ip_list and not url_list:
+            return None, None
+        return ip_list or [], url_list or []
+
     async def update_addr_list_async(
         self,
         ip_addr_list: Optional[list[str]] = None,
         url_addr_list: Optional[list[str]] = None,
     ) -> None:
         new_ip_map: dict = {}
-        for ip in ip_addr_list or self._IP_ADDRESS_LIST:
+        for ip in (self._IP_ADDRESS_LIST if ip_addr_list is None
+                   else ip_addr_list):
             if ip in self._ip_addr_map:
                 new_ip_map[ip] = self._ip_addr_map[ip]
             else:
                 new_ip_map[ip] = self._DETECT_TIMEOUT
         self._ip_addr_map = new_ip_map
         new_url_map: dict = {}
-        for url in url_addr_list or self._URL_ADDRESS_LIST:
+        for url in (self._URL_ADDRESS_LIST if url_addr_list is None
+                    else url_addr_list):
             if url in self._http_addr_map:
                 new_url_map[url] = self._http_addr_map[url]
             else:
@@ -206,6 +231,9 @@ class MIoTNetwork:
         self.__refresh_timer_handler()
 
     async def get_network_status_async(self) -> bool:
+        # Without probes, let each cloud connection report its own errors.
+        if not self.probes_enabled:
+            return self.local_network_available
         try:
             ip_addr: str = ''
             ip_ts: float = self._DETECT_TIMEOUT
@@ -244,7 +272,7 @@ class MIoTNetwork:
     async def ping_multi_async(
         self, ip_list: Optional[list[str]] = None
     ) -> bool:
-        addr_list = ip_list or list(self._ip_addr_map.keys())
+        addr_list = (list(self._ip_addr_map) if ip_list is None else ip_list)
         tasks = []
         for addr in addr_list:
             tasks.append(self.__ping_async(addr))
@@ -257,7 +285,8 @@ class MIoTNetwork:
     async def http_multi_async(
         self, url_list: Optional[list[str]] = None
     ) -> bool:
-        addr_list = url_list or list(self._http_addr_map.keys())
+        addr_list = (
+            list(self._http_addr_map) if url_list is None else url_list)
         tasks = []
         for addr in addr_list:
             tasks.append(self.__http_async(url=addr))
@@ -337,8 +366,11 @@ class MIoTNetwork:
 
     async def __update_status_and_info_async(self) -> None:
         try:
-            status: bool = await self.get_network_status_async()
             infos = await self.get_network_info_async()
+            # Refresh interfaces before deriving status without probes.
+            local_available = bool(infos)
+            status = (await self.get_network_status_async()
+                      if self.probes_enabled else local_available)
 
             if self._network_status != status:
                 for handler in self._sub_list_network_status.values():

@@ -206,13 +206,15 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             uid='global_config', cloud_server='all',
             keys=['network_detect_addr'])).get('network_detect_addr', {})
         self._cc_network_detect_addr = ','.join(
-            network_detect_addr.get('ip', [])
-            + network_detect_addr.get('url', []))
+            (network_detect_addr.get('ip') or [])
+            + (network_detect_addr.get('url') or []))
         self._miot_network = self.hass.data[DOMAIN].get('miot_network', None)
         if not self._miot_network:
+            ip_addresses, url_addresses = MIoTNetwork.get_probe_addresses(
+                network_detect_addr)
             self._miot_network = MIoTNetwork(
-                ip_addr_list=network_detect_addr.get('ip', []),
-                url_addr_list=network_detect_addr.get('url', []),
+                ip_addr_list=ip_addresses,
+                url_addr_list=url_addresses,
                 refresh_interval=NETWORK_REFRESH_INTERVAL,
                 loop=self._main_loop)
             self.hass.data[DOMAIN]['miot_network'] = self._miot_network
@@ -320,12 +322,15 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._cc_network_detect_addr = user_input.get(
             'network_detect_addr', self._cc_network_detect_addr)
 
-        ip_list, url_list, invalid_list = _handle_network_detect_addr(
-            addr_str=self._cc_network_detect_addr)
-        if invalid_list:
-            return await self.__show_network_detect_config_form(
-                reason='invalid_network_addr')
-        if ip_list or url_list:
+        disable_network_probes = user_input.get('disable_network_probes', False)
+        if disable_network_probes:
+            ip_list, url_list = [], []
+        else:
+            ip_list, url_list, invalid_list = _handle_network_detect_addr(
+                addr_str=self._cc_network_detect_addr)
+            if invalid_list:
+                return await self.__show_network_detect_config_form(
+                    reason='invalid_network_addr')
             if ip_list and not await self._miot_network.ping_multi_async(
                     ip_list=ip_list):
                 return await self.__show_network_detect_config_form(
@@ -334,11 +339,10 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     url_list=url_list):
                 return await self.__show_network_detect_config_form(
                     reason='invalid_http_addr')
-        else:
-            if not await self._miot_network.get_network_status_async():
-                return await self.__show_network_detect_config_form(
-                    reason='invalid_default_addr')
-        network_detect_addr: dict = {'ip': ip_list, 'url': url_list}
+            if not ip_list and not url_list:
+                ip_list, url_list = None, None
+        network_detect_addr = {
+            'ip': ip_list, 'url': url_list, 'disabled': disable_network_probes}
         # Save
         if await self._miot_storage.update_user_config_async(
             uid='global_config', cloud_server='all', config={
@@ -349,7 +353,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Check network deps
         self._opt_check_network_deps = user_input.get(
             'check_network_deps', self._opt_check_network_deps)
-        if self._opt_check_network_deps:
+        if self._opt_check_network_deps and not disable_network_probes:
             # OAuth2
             if not await self._miot_network.http_multi_async(
                     url_list=[OAUTH2_AUTH_URL]):
@@ -393,12 +397,12 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return await self.async_step_oauth()
 
     async def __show_network_detect_config_form(self, reason: str):
+        addr_list = (await self._miot_storage.load_user_config_async(
+            'global_config', 'all', ['network_detect_addr'])).get(
+                'network_detect_addr', {})
         if not self._cc_network_detect_addr:
-            addr_list: dict = (await self._miot_storage.load_user_config_async(
-                'global_config', 'all', ['network_detect_addr'])).get(
-                    'network_detect_addr', {})
             self._cc_network_detect_addr = ','.join(
-                addr_list.get('ip', [])+addr_list.get('url', []))
+                (addr_list.get('ip') or []) + (addr_list.get('url') or []))
         return self.async_show_form(
             step_id='network_detect_config',
             data_schema=vol.Schema({
@@ -406,6 +410,10 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     'network_detect_addr',
                     default=self._cc_network_detect_addr  # type: ignore
                 ): str,
+                vol.Optional(
+                    'disable_network_probes',
+                    default=addr_list.get('disabled', False),
+                ): bool,
                 vol.Optional(
                     'check_network_deps',
                     default=self._opt_check_network_deps  # type: ignore
@@ -1129,12 +1137,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             if not self._miot_lan:
                 raise MIoTConfigError('invalid miot lan')
             # Check token
-            if not await self._miot_client.refresh_oauth_info_async():
-                # Check network
-                if not await self._miot_network.get_network_status_async():
-                    raise AbortFlow(
-                        reason='network_connect_error',
-                        description_placeholders={})
+            if (await self._miot_network.get_network_status_async()
+                    and not await self._miot_client.refresh_oauth_info_async()):
                 self._need_reload = True
                 return await self.async_step_auth_config()
             return await self.async_step_config_options()
@@ -1355,10 +1359,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 },
                 last_step=False,
             )
-        # Check network
-        if not await self._miot_network.get_network_status_async():
-            raise AbortFlow(
-                reason='network_connect_error', description_placeholders={})
         self._lang_new = user_input.get(
             'integration_language', self._integration_language)
         self._update_user_info = user_input.get(
@@ -1809,12 +1809,15 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         self._cc_network_detect_addr = user_input.get(
             'network_detect_addr', self._cc_network_detect_addr)
 
-        ip_list, url_list, invalid_list = _handle_network_detect_addr(
-            addr_str=self._cc_network_detect_addr)
-        if invalid_list:
-            return await self.__show_network_detect_config_form(
-                reason='invalid_network_addr')
-        if ip_list or url_list:
+        disable_network_probes = user_input.get('disable_network_probes', False)
+        if disable_network_probes:
+            ip_list, url_list = [], []
+        else:
+            ip_list, url_list, invalid_list = _handle_network_detect_addr(
+                addr_str=self._cc_network_detect_addr)
+            if invalid_list:
+                return await self.__show_network_detect_config_form(
+                    reason='invalid_network_addr')
             if ip_list and not await self._miot_network.ping_multi_async(
                     ip_list=ip_list):
                 return await self.__show_network_detect_config_form(
@@ -1823,11 +1826,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     url_list=url_list):
                 return await self.__show_network_detect_config_form(
                     reason='invalid_http_addr')
-        else:
-            if not await self._miot_network.get_network_status_async():
-                return await self.__show_network_detect_config_form(
-                    reason='invalid_default_addr')
-        network_detect_addr: dict = {'ip': ip_list, 'url': url_list}
+            if not ip_list and not url_list:
+                ip_list, url_list = None, None
+        network_detect_addr = {
+            'ip': ip_list, 'url': url_list, 'disabled': disable_network_probes}
         # Save
         if await self._miot_storage.update_user_config_async(
             uid='global_config', cloud_server='all', config={
@@ -1838,7 +1840,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         # Check network deps
         self._opt_check_network_deps = user_input.get(
             'check_network_deps', False)
-        if self._opt_check_network_deps:
+        if self._opt_check_network_deps and not disable_network_probes:
             # OAuth2
             if not await self._miot_network.http_multi_async(
                     url_list=[OAUTH2_AUTH_URL]):
@@ -1882,12 +1884,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         return await self.async_step_config_confirm()
 
     async def __show_network_detect_config_form(self, reason: str):
+        addr_list = (await self._miot_storage.load_user_config_async(
+            'global_config', 'all', ['network_detect_addr'])).get(
+                'network_detect_addr', {})
         if not self._cc_network_detect_addr:
-            addr_list: dict = (await self._miot_storage.load_user_config_async(
-                'global_config', 'all', ['network_detect_addr'])).get(
-                    'network_detect_addr', {})
             self._cc_network_detect_addr = ','.join(
-                addr_list.get('ip', [])+addr_list.get('url', []))
+                (addr_list.get('ip') or []) + (addr_list.get('url') or []))
         return self.async_show_form(
             step_id='network_detect_config',
             data_schema=vol.Schema({
@@ -1895,6 +1897,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     'network_detect_addr',
                     default=self._cc_network_detect_addr  # type: ignore
                 ): str,
+                vol.Optional(
+                    'disable_network_probes',
+                    default=addr_list.get('disabled', False),
+                ): bool,
                 vol.Optional(
                     'check_network_deps',
                     default=self._opt_check_network_deps  # type: ignore

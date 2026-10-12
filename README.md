@@ -12,6 +12,8 @@ OAuth and MQTT retain their existing identifiers because they are used for authe
 
 Authentication codes, token values, and full device payloads are omitted from the main cloud, MQTT, and LAN log paths. The diagnostic report contains only load status, control mode, and network availability. Existing log files and backups can still contain values written by earlier versions.
 
+In the integration's network configuration, enable **Disable network probes** to stop automatic ping and HTTP availability checks. This global setting also skips the optional dependency checks. Local interface discovery continues. With probes disabled, the integration attempts cloud connections when a local interface is available; each connection reports its own errors. Custom addresses enable only the probe types you enter. Clear the address field with probes enabled to restore the defaults.
+
 ## Installation
 
 > Home Assistant version requirement:

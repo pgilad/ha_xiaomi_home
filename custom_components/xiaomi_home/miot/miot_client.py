@@ -1970,9 +1970,11 @@ async def get_miot_instance_async(
     network: Optional[MIoTNetwork] = hass.data[DOMAIN].get(
         'miot_network', None)
     if not network:
+        ip_addresses, url_addresses = MIoTNetwork.get_probe_addresses(
+            network_detect_addr)
         network = MIoTNetwork(
-            ip_addr_list=network_detect_addr.get('ip', []),
-            url_addr_list=network_detect_addr.get('url', []),
+            ip_addr_list=ip_addresses,
+            url_addr_list=url_addresses,
             refresh_interval=NETWORK_REFRESH_INTERVAL,
             loop=loop)
         hass.data[DOMAIN]['miot_network'] = network
