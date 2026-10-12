@@ -61,7 +61,6 @@ from .common import calc_group_id
 from .const import (
     UNSUPPORTED_MODELS,
     DEFAULT_OAUTH2_API_HOST,
-    INTEGRATION_VERSION,
     MIHOME_HTTP_API_TIMEOUT,
     OAUTH2_AUTH_URL)
 from .miot_error import MIoTErrorCode, MIoTHttpError, MIoTOauthError
@@ -84,7 +83,7 @@ class MIoTOauthClient:
 
     def __init__(
             self, client_id: str, redirect_url: str, cloud_server: str,
-            uuid: str, system_info: str = '',
+            uuid: str,
             loop: Optional[asyncio.AbstractEventLoop] = None
     ) -> None:
         self._main_loop = loop or asyncio.get_running_loop()
@@ -104,10 +103,8 @@ class MIoTOauthClient:
         else:
             self._oauth_host = f'{cloud_server}.{DEFAULT_OAUTH2_API_HOST}'
         self._device_id = f'ha.{uuid}'
-        self._user_agent = (
-            f'ha_xiaomi_home/{INTEGRATION_VERSION}'
-            f' {system_info}'
-            f' client/{self._device_id}')
+        # Keep host details and client identity out of the User-Agent.
+        self._user_agent = 'ha_xiaomi_home'
         self._state = hashlib.sha1(
             f'd={self._device_id}'.encode('utf-8')).hexdigest()
         self._session = aiohttp.ClientSession(loop=self._main_loop)
@@ -256,7 +253,6 @@ class MIoTHttpClient:
 
     def __init__(
             self, cloud_server: str, client_id: str, access_token: str,
-            uuid: str, system_info: str = '',
             loop: Optional[asyncio.AbstractEventLoop] = None
     ) -> None:
         self._main_loop = loop or asyncio.get_running_loop()
@@ -272,14 +268,11 @@ class MIoTHttpClient:
             not isinstance(cloud_server, str)
             or not isinstance(client_id, str)
             or not isinstance(access_token, str)
-            or not isinstance(uuid, str)
         ):
             raise MIoTHttpError('invalid params')
 
-        self._user_agent = (
-            f'ha_xiaomi_home/{INTEGRATION_VERSION}'
-            f' {system_info}'
-            f' client/ha.{uuid}')
+        # Keep host details and client identity out of the User-Agent.
+        self._user_agent = 'ha_xiaomi_home'
         self.update_http_header(
             cloud_server=cloud_server, client_id=client_id,
             access_token=access_token)

@@ -4,6 +4,12 @@
 
 Xiaomi Home Integration is an integrated component of Home Assistant supported by Xiaomi official. It allows you to use Xiaomi IoT smart devices in Home Assistant.
 
+## Privacy changes in this fork
+
+Cloud HTTP and OAuth requests use the fixed User-Agent `ha_xiaomi_home` without Home Assistant or integration versions, OS details, CPU architecture, installation type, or an installation identifier. The integration does not collect system information for these headers.
+
+OAuth and MQTT retain their existing identifiers because they are used for authentication and cloud connections. Xiaomi still receives authenticated device commands and status requests and can record them. This change does not control data sent by device firmware.
+
 ## Installation
 
 > Home Assistant version requirement:
