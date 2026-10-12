@@ -50,7 +50,6 @@ import hashlib
 import ipaddress
 import json
 import secrets
-import traceback
 from typing import Optional, Set, Tuple
 from urllib.parse import urlparse
 from aiohttp import web
@@ -201,8 +200,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._miot_storage = MIoTStorage(
                 root_path=self._storage_path, loop=self._main_loop)
             self.hass.data[DOMAIN]['miot_storage'] = self._miot_storage
-            _LOGGER.info(
-                'async_step_user, create miot storage, %s', self._storage_path)
+            _LOGGER.info('async_step_user')
         # MIoT network
         network_detect_addr = (await self._miot_storage.load_user_config_async(
             uid='global_config', cloud_server='all',
@@ -219,7 +217,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 loop=self._main_loop)
             self.hass.data[DOMAIN]['miot_network'] = self._miot_network
             await self._miot_network.init_async()
-            _LOGGER.info('async_step_user, create miot network')
+            _LOGGER.info('async_step_user')
         # MIPS service
         self._mips_service = self.hass.data[DOMAIN].get('mips_service', None)
         if not self._mips_service:
@@ -228,7 +226,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._mips_service = MipsService(aiozc=aiozc, loop=self._main_loop)
             self.hass.data[DOMAIN]['mips_service'] = self._mips_service
             await self._mips_service.init_async()
-            _LOGGER.info('async_step_user, create mips service')
+            _LOGGER.info('async_step_user')
 
         return await self.async_step_eula(user_input)
 
@@ -345,8 +343,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if await self._miot_storage.update_user_config_async(
             uid='global_config', cloud_server='all', config={
                 'network_detect_addr': network_detect_addr}):
-            _LOGGER.info(
-                'update network_detect_addr, %s', network_detect_addr)
+            _LOGGER.info('update network_detect_addr')
         await self._miot_network.update_addr_list_async(
             ip_addr_list=ip_list, url_addr_list=url_list)
         # Check network deps
@@ -388,7 +385,8 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     raise RuntimeError('mqtt connect error')
                 mqtt_client.disconnect()
             except Exception as err:  # pylint: disable=broad-exception-caught
-                _LOGGER.error('try connect mqtt broker error, %s', err)
+                _LOGGER.error(
+                    'try connect mqtt broker error: %s', type(err).__name__)
                 return await self.__show_network_detect_config_form(
                     reason='unreachable_mqtt_broker')
 
@@ -435,9 +433,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # 1: Init miot_oauth, generate auth url
         try:
             if not self._miot_oauth:
-                _LOGGER.info(
-                    'async_step_oauth, redirect_url: %s',
-                    self._oauth_redirect_url_full)
+                _LOGGER.debug('OAuth login started')
                 miot_oauth = MIoTOauthClient(
                     client_id=OAUTH2_CLIENT_ID,
                     redirect_url=self._oauth_redirect_url_full,
@@ -450,8 +446,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     miot_oauth.state)
                 self.hass.data[DOMAIN][self._virtual_did]['i18n'] = (
                     self._miot_i18n)
-                _LOGGER.info(
-                    'async_step_oauth, oauth_url: %s', self._cc_oauth_auth_url)
+                _LOGGER.debug('OAuth authorization URL created')
                 webhook_async_unregister(
                     self.hass, webhook_id=self._virtual_did)
                 webhook_async_register(
@@ -468,13 +463,11 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     self._cc_fut_oauth_code = self._main_loop.create_future()
                     self.hass.data[DOMAIN][self._virtual_did][
                         'fut_oauth_code'] = self._cc_fut_oauth_code
-                _LOGGER.info(
-                    'async_step_oauth, webhook.async_register: %s',
-                    self._virtual_did)
+                _LOGGER.info('async_step_oauth')
                 self._miot_oauth = miot_oauth
         except Exception as err:  # pylint: disable=broad-exception-caught
             _LOGGER.error(
-                'async_step_oauth, %s, %s', err, traceback.format_exc())
+                'async_step_oauth: %s', type(err).__name__)
             return self.async_show_progress_done(next_step_id='oauth_error')
 
         # 2: show OAuth2 loading page
@@ -483,7 +476,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self.__check_oauth_async())
         if self._cc_task_oauth.done():
             if (error := self._cc_task_oauth.exception()):
-                _LOGGER.error('task_oauth exception, %s', error)
+                _LOGGER.error('task_oauth exception')
                 self._cc_config_rc = str(error)
                 return self.async_show_progress_done(next_step_id='oauth_error')
             if self._miot_oauth:
@@ -536,7 +529,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     _LOGGER.error('get nick name failed')
             except Exception as err:
                 _LOGGER.error(
-                    'get_access_token, %s, %s', err, traceback.format_exc())
+                    'get_access_token: %s', type(err).__name__)
                 raise MIoTConfigError('get_token_error') from err
 
         # TASK 3: Get home info
@@ -545,7 +538,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 raise MIoTConfigError('http_client_error')
             self._cc_home_info = (
                 await self._miot_http.get_devices_async())
-            _LOGGER.info('get_homeinfos response: %s', self._cc_home_info)
+            _LOGGER.debug('Home information received')
             self._uid = self._cc_home_info['uid']
             if self._uid == self._nick_name:
                 self._nick_name = DEFAULT_NICK_NAME
@@ -557,7 +550,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 raise MIoTError('miot_storage.update_user_config_async error')
         except Exception as err:
             _LOGGER.error(
-                'get_homeinfos error, %s, %s', err, traceback.format_exc())
+                'get_homeinfos error: %s', type(err).__name__)
             raise MIoTConfigError('get_homeinfo_error') from err
 
         # TASK 4: Abort if unique_id configured
@@ -572,8 +565,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 mips_list = self._mips_service.get_services()
             except Exception as err:
                 _LOGGER.error(
-                    'async_update_services error, %s, %s',
-                    err, traceback.format_exc())
+                    'async_update_services error: %s', type(err).__name__)
                 raise MIoTConfigError('mdns_discovery_error') from err
 
         # TASK 6: Generate devices filter
@@ -634,13 +626,10 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 cert=crt_str):
                             raise MIoTError('update_user_cert_async failed')
                         self._cc_user_cert_done = True
-                        _LOGGER.info(
-                            'get mihome cert success, %s, %s',
-                            self._uid, self._virtual_did)
+                        _LOGGER.info('get mihome cert success')
                 except Exception as err:
                     _LOGGER.error(
-                        'get user cert error, %s, %s',
-                        err, traceback.format_exc())
+                        'get user cert error: %s', type(err).__name__)
                     raise MIoTConfigError('get_cert_error') from err
 
         # Auth success, unregister oauth webhook
@@ -648,9 +637,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if self._miot_http:
             await self._miot_http.deinit_async()
             self._miot_http = None
-        _LOGGER.info(
-            '__check_oauth_async, webhook.async_unregister: %s',
-            self._virtual_did)
+        _LOGGER.info('__check_oauth_async')
 
     # Show setup error message
     async def async_step_oauth_error(self, user_input=None):
@@ -705,9 +692,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     domain='miot_devices',
                     name=f'{self._uid}_{self._cloud_server}',
                     data=self._device_list_sorted):
-                _LOGGER.error(
-                    'save devices async failed, %s, %s',
-                    self._uid, self._cloud_server)
+                _LOGGER.error('save devices async failed')
                 return await self.__show_homes_select_form(
                     'devices_storage_failed')
             if user_input.get('advanced_options', False):
@@ -715,8 +700,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.config_flow_done()
         except Exception as err:
             _LOGGER.error(
-                'async_step_homes_select, %s, %s',
-                err, traceback.format_exc())
+                'async_step_homes_select: %s', type(err).__name__)
             raise AbortFlow(
                 reason='config_flow_error',
                 description_placeholders={
@@ -847,9 +831,7 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     domain='miot_devices',
                     name=f'{self._uid}_{self._cloud_server}',
                     data=self._device_list_sorted):
-                _LOGGER.error(
-                    'save devices async failed, %s, %s',
-                    self._uid, self._cloud_server)
+                _LOGGER.error('save devices async failed')
                 raise AbortFlow(
                     reason='storage_error', description_placeholders={
                         'error': 'save user devices error'})
@@ -1109,9 +1091,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         self._cc_devices_local = {}
         self._cc_network_detect_addr = ''
 
-        _LOGGER.info(
-            'options init, %s, %s, %s, %s', config_entry.entry_id,
-            config_entry.unique_id, config_entry.data, config_entry.options)
+        _LOGGER.debug('Options flow started')
 
     async def async_step_init(self, user_input=None):
         self.hass.data.setdefault(DOMAIN, {})
@@ -1167,8 +1147,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             raise err
         except Exception as err:
             _LOGGER.error(
-                'async_step_init error, %s, %s',
-                err, traceback.format_exc())
+                'async_step_init error: %s', type(err).__name__)
             raise AbortFlow(
                 reason='re_add',
                 description_placeholders={'error': str(err)},
@@ -1205,8 +1184,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     self._miot_oauth.state)
                 self.hass.data[DOMAIN][self._virtual_did]['i18n'] = (
                     self._miot_i18n)
-                _LOGGER.info(
-                    'async_step_oauth, oauth_url: %s', self._cc_oauth_auth_url)
+                _LOGGER.debug('OAuth authorization URL created')
                 webhook_async_unregister(
                     self.hass, webhook_id=self._virtual_did)
                 webhook_async_register(
@@ -1225,13 +1203,11 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         'fut_oauth_code'] = self._cc_fut_oauth_code
                 self._cc_task_oauth = self.hass.async_create_task(
                     self.__check_oauth_async())
-                _LOGGER.info(
-                    'async_step_oauth, webhook.async_register: %s',
-                    self._virtual_did)
+                _LOGGER.info('async_step_oauth')
 
             if self._cc_task_oauth.done():
                 if (error := self._cc_task_oauth.exception()):
-                    _LOGGER.error('task_oauth exception, %s', error)
+                    _LOGGER.error('task_oauth exception')
                     self._cc_config_rc = str(error)
                     self._cc_task_oauth = None
                     return self.async_show_progress_done(
@@ -1240,8 +1216,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     next_step_id='config_options')
         except Exception as err:  # pylint: disable=broad-exception-caught
             _LOGGER.error(
-                'async_step_oauth error, %s, %s',
-                err, traceback.format_exc())
+                'async_step_oauth error: %s', type(err).__name__)
             self._cc_config_rc = str(err)
             return self.async_show_progress_done(next_step_id='oauth_error')
         # pylint: disable=unexpected-keyword-arg
@@ -1263,7 +1238,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         oauth_code: str = await self._cc_fut_oauth_code
         if not oauth_code:
             raise MIoTConfigError('oauth_code_error')
-        _LOGGER.debug('options flow __check_oauth_async, %s', oauth_code)
+        _LOGGER.debug('OAuth callback received')
         # Get access_token and user_info from miot_oauth
         if not self._auth_info:
             auth_info: dict = {}
@@ -1272,7 +1247,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     code=oauth_code)
             except Exception as err:
                 _LOGGER.error(
-                    'get_access_token, %s, %s', err, traceback.format_exc())
+                    'get_access_token: %s', type(err).__name__)
                 raise MIoTConfigError('get_token_error') from err
             # Check uid
             m_http: MIoTHttpClient = MIoTHttpClient(
@@ -1294,9 +1269,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         # Auth success, unregister oauth webhook
         webhook_async_unregister(self.hass, webhook_id=self._virtual_did)
-        _LOGGER.info(
-            '__check_oauth_async, webhook.async_unregister: %s',
-            self._virtual_did)
+        _LOGGER.info('__check_oauth_async')
 
     # Show setup error message
     async def async_step_oauth_error(self, user_input=None):
@@ -1443,8 +1416,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 mips_list = self._mips_service.get_services()
             except Exception as err:
                 _LOGGER.error(
-                    'async_update_services error, %s, %s',
-                    err, traceback.format_exc())
+                    'async_update_services error: %s', type(err).__name__)
                 raise MIoTConfigError('mdns_discovery_error') from err
 
             # Get home info
@@ -1453,7 +1425,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     await self._miot_http.get_devices_async())
             except Exception as err:
                 _LOGGER.error(
-                    'get_homeinfos error, %s, %s', err, traceback.format_exc())
+                    'get_homeinfos error: %s', type(err).__name__)
                 raise MIoTConfigError('get_homeinfo_error') from err
             # Generate devices filter
             home_list = {}
@@ -1860,8 +1832,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         if await self._miot_storage.update_user_config_async(
             uid='global_config', cloud_server='all', config={
                 'network_detect_addr': network_detect_addr}):
-            _LOGGER.info(
-                'update network_detect_addr, %s', network_detect_addr)
+            _LOGGER.info('update network_detect_addr')
         await self._miot_network.update_addr_list_async(
             ip_addr_list=ip_list, url_addr_list=url_list)
         # Check network deps
@@ -1903,7 +1874,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     raise RuntimeError('mqtt connect error')
                 mqtt_client.disconnect()
             except Exception as err:  # pylint: disable=broad-exception-caught
-                _LOGGER.error('try connect mqtt broker error, %s', err)
+                _LOGGER.error(
+                    'try connect mqtt broker error: %s', type(err).__name__)
                 return await self.__show_network_detect_config_form(
                     reason='unreachable_mqtt_broker')
 
@@ -2002,9 +1974,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     domain='miot_devices',
                     name=f'{self._uid}_{self._cloud_server}',
                     data=self._device_list_sorted):
-                _LOGGER.error(
-                    'save devices async failed, %s, %s',
-                    self._uid, self._cloud_server)
+                _LOGGER.error('save devices async failed')
                 raise AbortFlow(
                     reason='storage_error', description_placeholders={
                         'error': 'save user devices error'})
@@ -2075,7 +2045,7 @@ async def _handle_oauth_webhook(hass, webhook_id, request):
         fut_oauth_code: asyncio.Future = hass.data[DOMAIN][webhook_id].pop(
             'fut_oauth_code', None)
         fut_oauth_code.set_result(data['code'])
-        _LOGGER.info('webhook code: %s', data['code'])
+        _LOGGER.debug('OAuth callback accepted')
 
         success_trans: dict = {}
         if i18n:

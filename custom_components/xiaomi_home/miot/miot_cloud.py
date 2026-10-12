@@ -188,7 +188,7 @@ class MIoTOauthClient:
                 key in res_obj['result']
                 for key in ['access_token', 'refresh_token', 'expires_in'])
         ):
-            raise MIoTOauthError(f'invalid http response, {res_str}')
+            raise MIoTOauthError('invalid OAuth response')
 
         return {
             **res_obj['result'],
@@ -333,16 +333,15 @@ class MIoTHttpClient:
         if http_res.status != 200:
             raise MIoTHttpError(
                 f'mihome api get failed, {http_res.status}, '
-                f'{url_path}, {params}')
+                f'{url_path}')
         res_str = await http_res.text()
         res_obj: dict = json.loads(res_str)
         if res_obj.get('code', None) != 0:
             raise MIoTHttpError(
                 f'invalid response code, {res_obj.get("code",None)}, '
-                f'{res_obj.get("message","")}')
+                f'{url_path}')
         _LOGGER.debug(
-            'mihome api get, %s%s, %s -> %s',
-            self._base_url, url_path, params, res_obj)
+            'mihome api get, %s%s', self._base_url, url_path)
         return res_obj
 
     async def __mihome_api_post_async(
@@ -361,16 +360,15 @@ class MIoTHttpClient:
         if http_res.status != 200:
             raise MIoTHttpError(
                 f'mihome api post failed, {http_res.status}, '
-                f'{url_path}, {data}')
+                f'{url_path}')
         res_str = await http_res.text()
         res_obj: dict = json.loads(res_str)
         if res_obj.get('code', None) != 0:
             raise MIoTHttpError(
                 f'invalid response code, {res_obj.get("code",None)}, '
-                f'{res_obj.get("message","")}')
+                f'{url_path}')
         _LOGGER.debug(
-            'mihome api post, %s%s, %s -> %s',
-            self._base_url, url_path, data, res_obj)
+            'mihome api post, %s%s', self._base_url, url_path)
         return res_obj
 
     async def get_user_info_async(self) -> dict:
@@ -430,15 +428,13 @@ class MIoTHttpClient:
         home_list: dict = {}
         for home in res_obj['result']['info']:
             if 'id' not in home:
-                _LOGGER.error(
-                    'get dev room page error, invalid home, %s', home)
+                _LOGGER.error('get dev room page error')
                 continue
             home_list[str(home['id'])] = {'dids': home.get(
                 'dids', None) or [], 'room_info': {}}
             for room in home.get('roomlist', []):
                 if 'id' not in room:
-                    _LOGGER.error(
-                        'get dev room page error, invalid room, %s', room)
+                    _LOGGER.error('get dev room page error')
                     continue
                 home_list[str(home['id'])]['room_info'][str(room['id'])] = {
                     'dids': room.get('dids', None) or []}
@@ -528,7 +524,7 @@ class MIoTHttpClient:
             for device_source in ['homelist', 'share_home_list']:
                 for home_id, info in more_list.items():
                     if home_id not in home_infos[device_source]:
-                        _LOGGER.info('unknown home, %s, %s', home_id, info)
+                        _LOGGER.info('unknown home')
                         continue
                     home_infos[device_source][home_id]['dids'].extend(
                         info['dids'])
@@ -577,21 +573,18 @@ class MIoTHttpClient:
             urn = device.get('spec_type', None)
             model = device.get('model', None)
             if did is None or name is None:
-                _LOGGER.info(
-                    'invalid device, cloud, %s', device)
+                _LOGGER.info('invalid device received from cloud')
                 continue
             if urn is None or model is None:
-                _LOGGER.info(
-                    'missing the urn|model field, cloud, %s', device)
+                _LOGGER.info('device from cloud is missing its urn or model')
                 continue
             if did.startswith('miwifi.'):
                 # The miwifi.* routers defined SPEC functions, but none of them
                 # were implemented.
-                _LOGGER.info('ignore miwifi.* device, cloud, %s', did)
+                _LOGGER.info('ignore miwifi.* device')
                 continue
             if model in UNSUPPORTED_MODELS:
-                _LOGGER.info('ignore unsupported model %s, cloud, %s',
-                             model, did)
+                _LOGGER.info('ignore unsupported model')
                 continue
             device_infos[did] = {
                 'did': did,
@@ -704,7 +697,7 @@ class MIoTHttpClient:
         for did in dids:
             if did not in results:
                 devices.pop(did, None)
-                _LOGGER.info('get device info failed, %s', did)
+                _LOGGER.info('get device info failed')
                 continue
             devices[did].update(results[did])
             # Whether sub devices
@@ -718,8 +711,7 @@ class MIoTHttpClient:
                 devices[parent_did]['sub_devices'][match_str.group()[
                     1:]] = device
             else:
-                _LOGGER.error(
-                    'unknown sub devices, %s, %s', did, parent_did)
+                _LOGGER.error('unknown sub devices')
         return {
             'uid': homeinfos['uid'],
             'homes': homes,
@@ -767,7 +759,7 @@ class MIoTHttpClient:
             props_req.add(key)
 
         if not props_buffer:
-            _LOGGER.error('get prop error, empty request list')
+            _LOGGER.error('get prop error')
             return False
         try:
             results = await self.get_props_async(props_buffer)
@@ -779,7 +771,8 @@ class MIoTHttpClient:
             # of get_prop_async, so the integration would never recover until
             # restart. Fall through with empty results so the loop below
             # drains every requested key with set_result(None).
-            _LOGGER.error('get prop batch failed, %s', err)
+            _LOGGER.error(
+                'get prop batch failed: %s', type(err).__name__)
             results = []
 
         for result in results:
@@ -789,7 +782,7 @@ class MIoTHttpClient:
             key = f'{result["did"]}.{result["siid"]}.{result["piid"]}'
             prop_obj = self._get_prop_list.pop(key, None)
             if prop_obj is None:
-                _LOGGER.info('get prop error, key not exists, %s', result)
+                _LOGGER.info('get prop error')
                 continue
             prop_obj['fut'].set_result(result['value'])
             props_req.remove(key)
@@ -800,8 +793,7 @@ class MIoTHttpClient:
                 continue
             prop_obj['fut'].set_result(None)
         if props_req:
-            _LOGGER.info(
-                'get prop from cloud failed, %s', props_req)
+            _LOGGER.info('get prop from cloud failed')
 
         if self._get_prop_list:
             self._get_prop_timer = self._main_loop.call_later(

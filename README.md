@@ -10,6 +10,8 @@ Cloud HTTP and OAuth requests use the fixed User-Agent `ha_xiaomi_home` without 
 
 OAuth and MQTT retain their existing identifiers because they are used for authentication and cloud connections. Xiaomi still receives authenticated device commands and status requests and can record them. This change does not control data sent by device firmware.
 
+Authentication codes, token values, and full device payloads are omitted from the main cloud, MQTT, and LAN log paths. The diagnostic report contains only load status, control mode, and network availability. Existing log files and backups can still contain values written by earlier versions.
+
 ## Installation
 
 > Home Assistant version requirement:

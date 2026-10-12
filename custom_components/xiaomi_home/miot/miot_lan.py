@@ -202,8 +202,7 @@ class _MIoTLanDevice:
         self.ip = ip
         if self._if_name != if_name:
             self._if_name = if_name
-            _LOGGER.info(
-                'device if_name change, %s, %s', self._if_name, self.did)
+            _LOGGER.info('device if_name change')
         self.__update_keep_alive(state=_MIoTLanDeviceState.FRESH)
 
     @property
@@ -280,7 +279,8 @@ class _MIoTLanDevice:
                 handler_ctx=sub_ts,
                 timeout_ms=5000)
         except Exception as err:  # pylint: disable=broad-exception-caught
-            _LOGGER.error('subscribe device error, %s', err)
+            _LOGGER.error(
+                'subscribe device error: %s', type(err).__name__)
 
         self._sub_locked = False
 
@@ -335,14 +335,14 @@ class _MIoTLanDevice:
             or 'code' not in msg['result']
             or msg['result']['code'] != 0
         ):
-            _LOGGER.error('subscribe device error, %s, %s', self.did, msg)
+            _LOGGER.error('subscribe device error')
             return
         self.subscribed = True
         self.sub_ts = sub_ts
         self._manager.broadcast_device_state(
             did=self.did, state={
                 'online': self._online, 'push_available': self.subscribed})
-        _LOGGER.info('subscribe success, %s, %s', self._if_name, self.did)
+        _LOGGER.info('subscribe success')
 
     def __unsubscribe_handler(self, msg: dict, ctx: Any) -> None:
         if (
@@ -350,9 +350,9 @@ class _MIoTLanDevice:
             or 'code' not in msg['result']
             or msg['result']['code'] != 0
         ):
-            _LOGGER.error('unsubscribe device error, %s, %s', self.did, msg)
+            _LOGGER.error('unsubscribe device error')
             return
-        _LOGGER.info('unsubscribe success, %s, %s', self._if_name, self.did)
+        _LOGGER.info('unsubscribe success')
 
     def __update_keep_alive(self, state: _MIoTLanDeviceState) -> None:
         last_state: _MIoTLanDeviceState = self._state
@@ -381,11 +381,10 @@ class _MIoTLanDevice:
                     _MIoTLanDeviceState(state.value+1))
                 # Fast ping
                 if self._if_name is None:
-                    _LOGGER.error(
-                        'if_name is Not set for device, %s', self.did)
+                    _LOGGER.error('if_name is Not set for device')
                     return
                 if self.ip is None:
-                    _LOGGER.error('ip is Not set for device, %s', self.did)
+                    _LOGGER.error('ip is Not set for device')
                     return
                 self._manager.ping(if_name=self._if_name, target_ip=self.ip)
             case _MIoTLanDeviceState.DEAD:
@@ -393,14 +392,14 @@ class _MIoTLanDevice:
                     self._ka_internal = self.KA_INTERVAL_MIN
                     self.__change_online(False)
             case _:
-                _LOGGER.error('invalid state, %s', state)
+                _LOGGER.error('invalid state')
 
     def __get_next_ka_timeout(self) -> float:
         self._ka_internal = min(self._ka_internal*2, self.KA_INTERVAL_MAX)
         return randomize_float(self._ka_internal, 0.1)
 
     def __change_online(self, online: bool) -> None:
-        _LOGGER.info('change online, %s, %s', self.did, online)
+        _LOGGER.info('change online')
         ts_now: int = int(time.time())
         self._online_offline_history.append({'ts': ts_now, 'online': online})
         if len(self._online_offline_history) > self.NETWORK_UNSTABLE_CNT_TH:
@@ -419,14 +418,14 @@ class _MIoTLanDevice:
             ):
                 self.online = True
             else:
-                _LOGGER.info('unstable device detected, %s', self.did)
+                _LOGGER.info('unstable device detected')
                 self._online_offline_timer = (
                     self._manager.internal_loop.call_later(
                         self.NETWORK_UNSTABLE_RESUME_TH,
                         self.__online_resume_handler))
 
     def __online_resume_handler(self) -> None:
-        _LOGGER.info('unstable resume threshold past, %s', self.did)
+        _LOGGER.info('unstable resume threshold past')
         self.online = True
 
     def __md5(self, data: bytes) -> bytes:
@@ -544,7 +543,7 @@ class MIoTLan:
             len(self._mips_service.get_services()) == 0
             and len(self._net_ifs) > 0
         ):
-            _LOGGER.info('no central hub gateway service, init miot lan')
+            _LOGGER.info('no central hub gateway service')
             self._main_loop.call_later(
                 0, lambda: self._main_loop.create_task(
                     self.init_async()))
@@ -595,7 +594,8 @@ class MIoTLan:
                     None, load_yaml_file,
                     gen_absolute_path(self.PROFILE_MODELS_FILE))
             except Exception as err:  # pylint: disable=broad-exception-caught
-                _LOGGER.error('load profile models error, %s', err)
+                _LOGGER.error(
+                    'load profile models error: %s', type(err).__name__)
                 self._profile_models = {}
             self._internal_loop = asyncio.new_event_loop()
             # All tasks meant for the internal loop should happen in this thread
@@ -606,8 +606,7 @@ class MIoTLan:
             self._init_done = True
             for handler in list(self._lan_state_sub_map.values()):
                 self._main_loop.create_task(handler(True))
-            _LOGGER.info(
-                'miot lan init, %s ,%s', self._net_ifs, self._available_net_ifs)
+            _LOGGER.info('miot lan init')
 
     def __internal_loop_thread(self) -> None:
         _LOGGER.info('miot lan thread start')
@@ -642,9 +641,9 @@ class MIoTLan:
         _LOGGER.info('miot lan deinit')
 
     async def update_net_ifs_async(self, net_ifs: list[str]) -> None:
-        _LOGGER.info('update net_ifs, %s', net_ifs)
+        _LOGGER.info('update net_ifs')
         if not isinstance(net_ifs, list):
-            _LOGGER.error('invalid net_ifs, %s', net_ifs)
+            _LOGGER.error('invalid net_ifs')
             return
         if len(net_ifs) == 0:
             # Deinit lan
@@ -655,7 +654,7 @@ class MIoTLan:
         for if_name in list(self._network.network_info.keys()):
             available_net_ifs.add(if_name)
         if set(net_ifs).isdisjoint(available_net_ifs):
-            _LOGGER.error('no valid net_ifs, %s', net_ifs)
+            _LOGGER.error('no valid net_ifs')
             await self.deinit_async()
             self._net_ifs = set(net_ifs)
             self._available_net_ifs = available_net_ifs
@@ -669,7 +668,7 @@ class MIoTLan:
             net_ifs)
 
     async def vote_for_lan_ctrl_async(self, key: str, vote: bool) -> None:
-        _LOGGER.info('vote for lan ctrl, %s, %s', key, vote)
+        _LOGGER.info('vote for lan ctrl')
         self._lan_ctrl_vote_map[key] = vote
         if not any(self._lan_ctrl_vote_map.values()):
             await self.deinit_async()
@@ -677,7 +676,7 @@ class MIoTLan:
         await self.init_async()
 
     async def update_subscribe_option(self, enable_subscribe: bool) -> None:
-        _LOGGER.info('update subscribe option, %s', enable_subscribe)
+        _LOGGER.info('update subscribe option')
         if not self._init_done:
             self._enable_subscribe = enable_subscribe
             return
@@ -686,7 +685,7 @@ class MIoTLan:
             {'enable_subscribe': enable_subscribe})
 
     def update_devices(self, devices: dict[str, dict]) -> bool:
-        _LOGGER.info('update devices, %s', devices)
+        _LOGGER.debug('LAN device configuration updated')
         if not self._init_done:
             return False
         self._internal_loop.call_soon_threadsafe(
@@ -694,7 +693,7 @@ class MIoTLan:
         return True
 
     def delete_devices(self, devices: list[str]) -> bool:
-        _LOGGER.info('delete devices, %s', devices)
+        _LOGGER.info('delete devices')
         if not self._init_done:
             return False
         self._internal_loop.call_soon_threadsafe(
@@ -913,8 +912,7 @@ class MIoTLan:
         status: InterfaceStatus,
         info: NetworkInfo
     ) -> None:
-        _LOGGER.info(
-            'on network info change, status: %s, info: %s', status, info)
+        _LOGGER.info('on network info change')
         available_net_ifs = set()
         for if_name in list(self._network.network_info.keys()):
             available_net_ifs.add(if_name)
@@ -938,13 +936,12 @@ class MIoTLan:
     async def __on_mips_service_change(
         self, group_id: str,  state: MipsServiceState, data: dict
     ) -> None:
-        _LOGGER.info(
-            'on mips service change, %s, %s, %s',  group_id, state, data)
+        _LOGGER.info('on mips service change')
         if len(self._mips_service.get_services()) > 0:
-            _LOGGER.info('find central service, deinit miot lan')
+            _LOGGER.info('find central service')
             await self.deinit_async()
         else:
-            _LOGGER.info('no central service, init miot lan')
+            _LOGGER.info('no central service')
             await self.init_async()
 
 # The following methods SHOULD ONLY be called in the internal loop
@@ -1051,7 +1048,8 @@ class MIoTLan:
                 handler_ctx=handler_ctx,
                 timeout_ms=timeout_ms)
         except Exception as err:  # pylint: disable=broad-exception-caught
-            _LOGGER.error('send2device error, %s', err)
+            _LOGGER.error(
+                'send2device error: %s', type(err).__name__)
             handler({
                 'code': MIoTErrorCode.CODE_INTERNAL_ERROR.value,
                 'error': str(err)},
@@ -1065,12 +1063,12 @@ class MIoTLan:
 
     def __sub_broadcast(self, data: _MIoTLanRegisterBroadcastData) -> None:
         self._device_msg_matcher[data.key] = data
-        _LOGGER.debug('lan register broadcast, %s', data.key)
+        _LOGGER.debug('lan register broadcast')
 
     def __unsub_broadcast(self, data: _MIoTLanUnregisterBroadcastData) -> None:
         if self._device_msg_matcher.get(topic=data.key):
             del self._device_msg_matcher[data.key]
-        _LOGGER.debug('lan unregister broadcast, %s', data.key)
+        _LOGGER.debug('lan unregister broadcast')
 
     def __get_dev_list(self, data: _MIoTLanGetDevListData) -> None:
         dev_list = {
@@ -1087,25 +1085,21 @@ class MIoTLan:
         for did, info in devices.items():
             # did MUST be digit(UINT64)
             if not did.isdigit():
-                _LOGGER.info('invalid did, %s', did)
+                _LOGGER.info('invalid did')
                 continue
             if (
                     'model' not in info
                     or info['model'] in self._profile_models):
                 # Do not support the local control of
                 # Profile device for the time being
-                _LOGGER.info(
-                    'model not support local ctrl, %s, %s',
-                    did, info.get('model'))
+                _LOGGER.info('model not support local ctrl')
                 continue
             if did not in self._lan_devices:
                 if 'token' not in info:
-                    _LOGGER.error(
-                        'token not found, %s, %s', did, info)
+                    _LOGGER.error('token not found for LAN device')
                     continue
                 if len(info['token']) != 32:
-                    _LOGGER.error(
-                        'invalid device token, %s, %s', did, info)
+                    _LOGGER.error('invalid LAN device token')
                     continue
                 self._lan_devices[did] = _MIoTLanDevice(
                     manager=self, did=did, token=info['token'],
@@ -1176,7 +1170,7 @@ class MIoTLan:
 
     def __create_socket(self, if_name: str) -> None:
         if if_name in self._broadcast_socks:
-            _LOGGER.info('socket already created, %s', if_name)
+            _LOGGER.info('socket already created')
             return
         # Create socket
         try:
@@ -1192,10 +1186,10 @@ class MIoTLan:
                 sock.fileno(), self.__socket_read_handler, (if_name, sock))
             self._broadcast_socks[if_name] = sock
             self._local_port = self._local_port or sock.getsockname()[1]
-            _LOGGER.info(
-                'created socket, %s, %s', if_name, self._local_port)
+            _LOGGER.info('created socket')
         except Exception as err:  # pylint: disable=broad-exception-caught
-            _LOGGER.error('create socket error, %s, %s', if_name, err)
+            _LOGGER.error(
+                'create socket error: %s', type(err).__name__)
 
     def __deinit_socket(self) -> None:
         for if_name in list(self._broadcast_socks.keys()):
@@ -1208,7 +1202,7 @@ class MIoTLan:
             return
         self._internal_loop.remove_reader(sock.fileno())
         sock.close()
-        _LOGGER.info('destroyed socket, %s', if_name)
+        _LOGGER.info('destroyed socket')
 
     def __socket_read_handler(self, ctx: tuple[str, socket.socket]) -> None:
         try:
@@ -1216,7 +1210,7 @@ class MIoTLan:
                 self._read_buffer, self.OT_MSG_LEN, socket.MSG_DONTWAIT)
             if data_len < 0:
                 # Socket error
-                _LOGGER.error('socket read error, %s, %s', ctx[0], data_len)
+                _LOGGER.error('socket read error')
                 return
             if addr[1] != self.OT_PORT:
                 # Not ot msg
@@ -1224,7 +1218,8 @@ class MIoTLan:
             self.__raw_message_handler(
                 self._read_buffer[:data_len], data_len, addr[0], ctx[0])
         except Exception as err:  # pylint: disable=broad-exception-caught
-            _LOGGER.error('socket read handler error, %s', err)
+            _LOGGER.error(
+                'socket read handler error: %s', type(err).__name__)
 
     def __raw_message_handler(
         self, data: bytearray, data_len: int, ip: str, if_name: str
@@ -1265,7 +1260,8 @@ class MIoTLan:
                 decrypted_data = device.decrypt_packet(data)
                 self.__message_handler(did, decrypted_data)
             except Exception as err:   # pylint: disable=broad-exception-caught
-                _LOGGER.error('decrypt packet error, %s, %s', did, err)
+                _LOGGER.error(
+                    'decrypt packet error: %s', type(err).__name__)
                 return
 
     def __message_handler(self, did: str, msg: dict) -> None:
@@ -1346,7 +1342,7 @@ class MIoTLan:
             # Unicast
             sock = self._broadcast_socks.get(if_name, None)
             if not sock:
-                _LOGGER.error('invalid socket, %s', if_name)
+                _LOGGER.error('invalid socket')
                 return
             sock.sendto(data, socket.MSG_DONTWAIT, (address, port))
 
@@ -1359,7 +1355,8 @@ class MIoTLan:
             self.ping(if_name=None, target_ip='255.255.255.255')
         except Exception as err:  # pylint: disable=broad-exception-caught
             # Ignore any exceptions to avoid blocking the loop
-            _LOGGER.error('ping device error, %s', err)
+            _LOGGER.error(
+                'ping device error: %s', type(err).__name__)
             pass
         scan_time = self.__get_next_scan_time()
         self._scan_timer = self._internal_loop.call_later(

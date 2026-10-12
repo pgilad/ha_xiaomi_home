@@ -536,16 +536,15 @@ class _MipsClient(ABC):
             self.log_debug(f'mips unsub when not connected, {topic}')
             return
         try:
-            result, mid = self._mqtt.unsubscribe(topic=topic)
+            result, unused_mid = self._mqtt.unsubscribe(topic=topic)
             if (result == MQTT_ERR_SUCCESS) or (result == MQTT_ERR_NO_CONN):
-                self.log_debug(
-                    f'mips unsub internal success, {result}, {mid}, {topic}')
+                self.log_debug('mips unsub internal success')
                 return
-            self.log_error(
-                f'mips unsub internal error, {result}, {mid}, {topic}')
+            self.log_error('mips unsub internal error')
         except Exception as err:  # pylint: disable=broad-exception-caught
             # Catch all exception
-            self.log_error(f'mips unsub internal error, {topic}, {err}')
+            self.log_error(
+                'mips unsub internal error: %s', type(err).__name__)
 
     @final
     def _mips_publish_internal(
@@ -568,7 +567,8 @@ class _MipsClient(ABC):
             return True
         except Exception as err:  # pylint: disable=broad-exception-caught
             # Catch other exception
-            self.log_error(f'mips publish internal error, {err}')
+            self.log_error(
+                'mips publish internal error: %s', type(err).__name__)
         return False
 
     def __thread_check(self) -> None:
@@ -608,7 +608,8 @@ class _MipsClient(ABC):
                     self._mqtt_fd, self.__mqtt_write_handler)
         except Exception as err:  # pylint: disable=broad-exception-caught
             # Catch all exception
-            self.log_error(f'__mqtt_loop_handler, {err}')
+            self.log_error(
+                '__mqtt_loop_handler: %s', type(err).__name__)
             raise err
 
     def __mips_loop_thread(self) -> None:
@@ -647,10 +648,10 @@ class _MipsClient(ABC):
 
     def __on_connect(self, client, user_data, flags, rc, props) -> None:
         if not self._mqtt:
-            _LOGGER.error('__on_connect, but mqtt is None')
+            _LOGGER.error('__on_connect')
             return
         if not self._mqtt.is_connected():
-            _LOGGER.error('__on_connect, but mqtt is disconnected')
+            _LOGGER.error('__on_connect')
             return
         self.log_info(f'mips connect, {flags}, {rc}, {props}')
         self.__reset_reconnect_time()
@@ -721,8 +722,7 @@ class _MipsClient(ABC):
 
     def __mips_sub_internal_pending_handler(self, ctx: Any) -> None:
         if not self._mqtt or not self._mqtt.is_connected():
-            _LOGGER.error(
-                'mips sub internal pending, but mqtt is None or disconnected')
+            _LOGGER.error('mips sub internal pending')
             return
         subbed_count = 1
         for topic in list(self._mips_sub_pending_map.keys()):
@@ -734,19 +734,20 @@ class _MipsClient(ABC):
                 self.log_error(f'retry mips sub internal error, {topic}')
                 continue
             subbed_count += 1
-            result = mid = None
+            result = None
             try:
-                result, mid = self._mqtt.subscribe(topic, qos=self.MIPS_QOS)
+                result, unused_mid = self._mqtt.subscribe(
+                    topic, qos=self.MIPS_QOS)
                 if result == MQTT_ERR_SUCCESS:
                     self._mips_sub_pending_map.pop(topic)
                     self.log_debug(f'mips sub internal success, {topic}')
                     continue
             except Exception as err:  # pylint: disable=broad-exception-caught
                 # Catch all exception
-                self.log_error(f'mips sub internal error, {topic}. {err}')
+                self.log_error(
+                    'mips sub internal error: %s', type(err).__name__)
             self._mips_sub_pending_map[topic] = count+1
-            self.log_error(
-                f'retry mips sub internal, {count}, {topic}, {result}, {mid}')
+            self.log_error('retry mips sub internal')
 
         if len(self._mips_sub_pending_map):
             self._mips_sub_pending_timer = self._internal_loop.call_later(
@@ -757,7 +758,7 @@ class _MipsClient(ABC):
 
     def __mips_connect(self) -> None:
         if not self._mqtt:
-            _LOGGER.error('__mips_connect, but mqtt is None')
+            _LOGGER.error('__mips_connect')
             return
         result = MQTT_ERR_UNKNOWN
         if self._mips_reconnect_timer:
@@ -775,9 +776,10 @@ class _MipsClient(ABC):
             result = self._mqtt.connect(
                 host=self._host, port=self._port,
                 clean_start=True, keepalive=MIHOME_MQTT_KEEPALIVE)
-            self.log_info(f'__mips_connect success, {result}')
+            self.log_info('__mips_connect success')
         except (TimeoutError, OSError) as error:
-            self.log_error('__mips_connect, connect error, %s', error)
+            self.log_error(
+                '__mips_connect: %s', type(error).__name__)
 
         if result == MQTT_ERR_SUCCESS:
             socket = self._mqtt.socket()
@@ -796,7 +798,7 @@ class _MipsClient(ABC):
             self._mqtt_timer = self._internal_loop.call_later(
                 self.MQTT_INTERVAL_S, self.__mqtt_timer_handler)
         else:
-            self.log_error(f'__mips_connect error result, {result}')
+            self.log_error('__mips_connect error result')
             self.__mips_try_reconnect()
 
     def __mips_try_reconnect(self, immediately: bool = False) -> None:
@@ -900,8 +902,7 @@ class MipsCloudClient(_MipsClient):
             try:
                 msg: dict = json.loads(payload)
             except json.JSONDecodeError:
-                self.log_error(
-                    f'on_prop_msg, invalid msg, {topic}, {payload}')
+                self.log_error('on_prop_msg')
                 return
             if (
                 not isinstance(msg.get('params', None), dict)
@@ -909,11 +910,10 @@ class MipsCloudClient(_MipsClient):
                 or 'piid' not in msg['params']
                 or 'value' not in msg['params']
             ):
-                self.log_error(
-                    f'on_prop_msg, invalid msg, {topic}, {payload}')
+                self.log_error('on_prop_msg')
                 return
             if handler:
-                self.log_debug('on properties_changed, %s', payload)
+                self.log_debug('on properties_changed')
                 handler(msg['params'], ctx)
         return self.__reg_broadcast_external(
             topic=topic, handler=on_prop_msg, handler_ctx=handler_ctx)
@@ -952,8 +952,7 @@ class MipsCloudClient(_MipsClient):
             try:
                 msg: dict = json.loads(payload)
             except json.JSONDecodeError:
-                self.log_error(
-                    f'on_event_msg, invalid msg, {topic}, {payload}')
+                self.log_error('on_event_msg')
                 return
             if (
                 not isinstance(msg.get('params', None), dict)
@@ -961,11 +960,10 @@ class MipsCloudClient(_MipsClient):
                 or 'eiid' not in msg['params']
                 or 'arguments' not in msg['params']
             ):
-                self.log_error(
-                    f'on_event_msg, invalid msg, {topic}, {payload}')
+                self.log_error('on_event_msg')
                 return
             if handler:
-                self.log_debug('on on_event_msg, %s', payload)
+                self.log_debug('on on_event_msg')
                 msg['params']['from'] = 'cloud'
                 handler(msg['params'], ctx)
         return self.__reg_broadcast_external(
@@ -1001,14 +999,14 @@ class MipsCloudClient(_MipsClient):
             # {"device_id":"xxxx","device_name":"米家智能插座3   ","event":"online",
             # "model": "cuco.plug.v3","timestamp":1709001070828,"uid":xxxx}
             if msg is None or 'device_id' not in msg or 'event' not in msg:
-                self.log_error(f'on_state_msg, recv unknown msg, {payload}')
+                self.log_error('on_state_msg')
                 return
             if msg['device_id'] != did:
                 self.log_error(
                     f'on_state_msg, err msg, {did}!={msg["device_id"]}')
                 return
             if handler:
-                self.log_debug('cloud, device state changed, %s', payload)
+                self.log_debug('cloud')
                 handler(
                     did, MIoTDeviceState.ONLINE if msg['event'] == 'online'
                     else MIoTDeviceState.OFFLINE, ctx)
@@ -1109,8 +1107,7 @@ class MipsCloudClient(_MipsClient):
             # Drop the message instead of raising, otherwise the exception
             # aborts paho's read loop and subsequent messages may be lost.
             self.log_error(
-                f'on message, drop non-utf-8 payload, {err}, {topic}, '
-                f'{payload.hex()}')
+                'on message: %s', type(err).__name__)
             return
         # self.log_debug(f"on broadcast, {topic}, {payload}")
         for item in bc_list or []:
@@ -1212,10 +1209,10 @@ class MipsLocalClient(_MipsClient):
                 or 'piid' not in msg
                 or 'value' not in msg
             ):
-                self.log_info('unknown prop msg, %s', payload)
+                self.log_info('unknown prop msg')
                 return
             if handler:
-                self.log_debug('local, on properties_changed, %s', payload)
+                self.log_debug('local')
                 handler(msg, ctx)
         return self.__reg_broadcast_external(
             topic=topic, handler=on_prop_msg, handler_ctx=handler_ctx)
@@ -1254,13 +1251,13 @@ class MipsLocalClient(_MipsClient):
                 or 'eiid' not in msg
                 # or 'arguments' not in msg
             ):
-                self.log_info('unknown event msg, %s', payload)
+                self.log_info('unknown event msg')
                 return
             if 'arguments' not in msg:
-                self.log_info('wrong event msg, %s', payload)
+                self.log_info('wrong event msg')
                 msg['arguments'] = []
             if handler:
-                self.log_debug('local, on event_occurred, %s', payload)
+                self.log_debug('local')
                 handler(msg, ctx)
         return self.__reg_broadcast_external(
             topic=topic, handler=on_event_msg, handler_ctx=handler_ctx)
@@ -1390,7 +1387,7 @@ class MipsLocalClient(_MipsClient):
             topic='proxy/getDevList', payload=payload or '{}',
             timeout_ms=timeout_ms)
         if not result_obj or 'devList' not in result_obj:
-            self.log_error(f'get dev list failed, invalid result, {payload}')
+            self.log_error('get dev list failed')
             return None
         device_list = {}
         for did, info in result_obj['devList'].items():
@@ -1398,7 +1395,7 @@ class MipsLocalClient(_MipsClient):
             urn: str = info.get('urn', None)
             model: str = info.get('model', None)
             if name is None or urn is None or model is None:
-                self.log_error(f'invalid device info, {did}, {info}')
+                self.log_error('invalid device info')
                 continue
             if model in UNSUPPORTED_MODELS:
                 self.log_info(f'unsupported model, {model}, {did}')
@@ -1469,14 +1466,10 @@ class MipsLocalClient(_MipsClient):
         result = self.__mips_publish(
             topic=pub_topic, payload=payload, mid=req.mid,
             ret_topic=self._reply_topic)
-        self.log_debug(
-            f'mips local call api, {result}, {req.mid}, {pub_topic}, '
-            f'{payload}')
+        self.log_debug('mips local call api, published: %s', result)
 
         def on_request_timeout(req: _MipsRequest):
-            self.log_error(
-                f'on mips request timeout, {req.mid}, {pub_topic}'
-                f', {payload}')
+            self.log_error('on mips request timeout')
             self._request_map.pop(str(req.mid), None)
             req.on_reply(
                 '{"error":{"code":-10006, "message":"timeout"}}',
@@ -1532,7 +1525,7 @@ class MipsLocalClient(_MipsClient):
         #     f"mips local client, on_message, {topic} -> {mips_msg}")
         # Reply
         if topic == self._reply_topic:
-            self.log_debug(f'on request reply, {mips_msg}')
+            self.log_debug('on request reply')
             req: Optional[_MipsRequest] = self._request_map.pop(
                 str(mips_msg.mid), None)
             if req:
@@ -1548,7 +1541,7 @@ class MipsLocalClient(_MipsClient):
         bc_list: list[_MipsBroadcast] = list(self._msg_matcher.iter_match(
             topic=topic))
         if bc_list:
-            self.log_debug(f'on broadcast, {topic}, {mips_msg}')
+            self.log_debug('on broadcast')
             for item in bc_list or []:
                 if item.handler is None:
                     continue
@@ -1564,8 +1557,7 @@ class MipsLocalClient(_MipsClient):
             payload_obj: dict = json.loads(mips_msg.payload)
             dev_list = payload_obj.get('devList', None)
             if not isinstance(dev_list, list) or not dev_list:
-                _LOGGER.error(
-                    'unknown devListChange msg, %s', mips_msg.payload)
+                _LOGGER.error('unknown devListChange msg')
                 return
             if self._on_dev_list_changed:
                 self.main_loop.call_soon_threadsafe(
@@ -1573,8 +1565,7 @@ class MipsLocalClient(_MipsClient):
                     self._on_dev_list_changed(self, dev_list))
             return
 
-        self.log_debug(
-            f'mips local client, recv unknown msg, {topic} -> {mips_msg}')
+        self.log_debug('mips local client')
 
     @property
     def __gen_mips_id(self) -> int:
@@ -1653,7 +1644,7 @@ class MipsLocalClient(_MipsClient):
     async def __get_prop_timer_handle(self) -> None:
         for did in list(self._get_prop_queue.keys()):
             item = self._get_prop_queue[did].pop()
-            _LOGGER.debug('get prop, %s, %s', did, item)
+            _LOGGER.debug('get prop')
             result_obj = await self.__request_async(
                 topic='proxy/get',
                 payload=item['param'],
