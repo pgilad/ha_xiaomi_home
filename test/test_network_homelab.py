@@ -83,10 +83,12 @@ async def test_legacy_empty_config_preserves_defaults():
 
 
 @pytest.mark.parametrize('options_flow', [False, True])
-async def test_config_flow_can_disable_all_probes(options_flow):
+@pytest.mark.parametrize('storage_ok', [False, True])
+async def test_config_flow_can_disable_all_probes(options_flow, storage_ok):
     """Both flows persist disabling and skip optional dependency requests."""
     from custom_components.xiaomi_home.config_flow import (
         XiaomiMihomeConfigFlow, OptionsFlowHandler)
+    from homeassistant.data_entry_flow import AbortFlow
 
     flow_class = OptionsFlowHandler if options_flow else XiaomiMihomeConfigFlow
     flow = object.__new__(flow_class)
@@ -94,15 +96,23 @@ async def test_config_flow_can_disable_all_probes(options_flow):
     flow._opt_network_detect_cfg = True
     flow._opt_check_network_deps = False
     flow._miot_storage = MagicMock()
-    flow._miot_storage.update_user_config_async = AsyncMock(return_value=True)
+    flow._miot_storage.update_user_config_async = AsyncMock(
+        return_value=storage_ok)
     flow._miot_network = MagicMock()
     flow._miot_network.update_addr_list_async = AsyncMock()
     flow.async_step_oauth = AsyncMock()
     flow.async_step_config_confirm = AsyncMock()
-    await flow.async_step_network_detect_config({
-        'disable_network_probes': True, 'check_network_deps': True})
-    flow._miot_network.update_addr_list_async.assert_awaited_once_with(
-        ip_addr_list=[], url_addr_list=[])
+    user_input = {'disable_network_probes': True, 'check_network_deps': True}
+    if storage_ok:
+        await flow.async_step_network_detect_config(user_input)
+        flow._miot_network.update_addr_list_async.assert_awaited_once_with(
+            ip_addr_list=[], url_addr_list=[])
+    else:
+        with pytest.raises(AbortFlow):
+            await flow.async_step_network_detect_config(user_input)
+        flow._miot_network.update_addr_list_async.assert_not_awaited()
+        flow.async_step_oauth.assert_not_awaited()
+        flow.async_step_config_confirm.assert_not_awaited()
     flow._miot_network.ping_multi_async.assert_not_called()
     flow._miot_network.http_multi_async.assert_not_called()
     saved = flow._miot_storage.update_user_config_async.call_args.kwargs

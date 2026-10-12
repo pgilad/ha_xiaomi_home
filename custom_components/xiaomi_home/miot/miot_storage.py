@@ -53,6 +53,7 @@ import shutil
 import time
 import traceback
 import hashlib
+import tempfile
 from datetime import datetime, timezone
 from enum import Enum, auto
 from pathlib import Path
@@ -106,7 +107,8 @@ class MIoTStorage:
         self._file_future = {}
 
         self._root_path = os.path.abspath(root_path)
-        os.makedirs(self._root_path, exist_ok=True)
+        os.makedirs(self._root_path, mode=0o700, exist_ok=True)
+        os.chmod(self._root_path, 0o700)
 
         _LOGGER.debug('root path, %s', self._root_path)
 
@@ -134,6 +136,7 @@ class MIoTStorage:
             _LOGGER.error('load error, file not readable, %s', full_path)
             return None
         try:
+            os.chmod(full_path, 0o600)
             with open(full_path, 'rb') as r_file:
                 r_data: bytes = r_file.read()
                 if r_data is None:
@@ -205,8 +208,7 @@ class MIoTStorage:
             if not os.access(full_path, os.W_OK):
                 _LOGGER.error('save error, file not writeable, %s', full_path)
                 return False
-        else:
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        temporary_path = None
         try:
             w_bytes: bytes
             if isinstance(data, bytes):
@@ -220,14 +222,32 @@ class MIoTStorage:
                     'save error, unsupported data type, %s',
                     type(data).__name__)
                 return False
-            with open(full_path, 'wb') as w_file:
+            directory = os.path.dirname(full_path)
+            os.makedirs(directory, mode=0o700, exist_ok=True)
+            os.chmod(directory, 0o700)
+            # Replace the destination only after the complete file is synced.
+            # A failed write must leave the existing credentials usable.
+            fd, temporary_path = tempfile.mkstemp(
+                prefix='.xiaomi_home-', suffix='.tmp', dir=directory)
+            with os.fdopen(fd, 'wb') as w_file:
+                os.fchmod(w_file.fileno(), 0o600)
                 w_file.write(w_bytes)
                 if with_hash:
                     w_file.write(hashlib.sha256(w_bytes).digest())
+                w_file.flush()
+                os.fsync(w_file.fileno())
+            os.replace(temporary_path, full_path)
+            temporary_path = None
             return True
         except (OSError, TypeError) as e:
             _LOGGER.error('save error, %s, %s', e, traceback.format_exc())
             return False
+        finally:
+            if temporary_path is not None:
+                try:
+                    os.unlink(temporary_path)
+                except FileNotFoundError:
+                    pass
 
     def save(
         self, domain: str, name: str, data: Union[bytes, str, dict, list, None]

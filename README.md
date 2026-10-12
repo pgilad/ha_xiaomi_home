@@ -16,6 +16,8 @@ In the integration's network configuration, enable **Disable network probes** to
 
 In **CONFIGURE**, select devices under **Use local control only for selected devices** to block cloud property reads, writes, actions, and event/property subscriptions for those devices. This setting overrides Cloud control mode for the selected devices. Devices without a working local route are unavailable and commands fail with a local-route error. Other devices keep their existing routing. Account login, token renewal, certificates, device discovery, and MQTT account connections still use Xiaomi Cloud. This is not a fully disconnected mode and does not stop firmware traffic. Direct reads remain limited per device to avoid firmware overload.
 
+Storage directories and files are restricted to the operating-system user that runs Home Assistant. Existing files receive private permissions when read. Saves use a temporary file and atomic replacement so a failed write retains the previous data. The existing storage format and checksum remain compatible; the checksum does not encrypt credentials. Protect Home Assistant backups and access to the host account.
+
 ## Installation
 
 > Home Assistant version requirement:

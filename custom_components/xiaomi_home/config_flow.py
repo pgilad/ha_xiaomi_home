@@ -344,10 +344,12 @@ class XiaomiMihomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         network_detect_addr = {
             'ip': ip_list, 'url': url_list, 'disabled': disable_network_probes}
         # Save
-        if await self._miot_storage.update_user_config_async(
+        if not await self._miot_storage.update_user_config_async(
             uid='global_config', cloud_server='all', config={
                 'network_detect_addr': network_detect_addr}):
-            _LOGGER.info('update network_detect_addr')
+            raise AbortFlow(reason='storage_error', description_placeholders={
+                'error': 'Unable to save network configuration'})
+        _LOGGER.info('update network_detect_addr')
         await self._miot_network.update_addr_list_async(
             ip_addr_list=ip_list, url_addr_list=url_list)
         # Check network deps
@@ -1844,10 +1846,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         network_detect_addr = {
             'ip': ip_list, 'url': url_list, 'disabled': disable_network_probes}
         # Save
-        if await self._miot_storage.update_user_config_async(
+        if not await self._miot_storage.update_user_config_async(
             uid='global_config', cloud_server='all', config={
                 'network_detect_addr': network_detect_addr}):
-            _LOGGER.info('update network_detect_addr')
+            raise AbortFlow(reason='storage_error', description_placeholders={
+                'error': 'Unable to save network configuration'})
+        _LOGGER.info('update network_detect_addr')
         await self._miot_network.update_addr_list_async(
             ip_addr_list=ip_list, url_addr_list=url_list)
         # Check network deps
