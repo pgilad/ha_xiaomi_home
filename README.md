@@ -18,6 +18,10 @@ In **CONFIGURE**, select devices under **Use local control only for selected dev
 
 Storage directories and files are restricted to the operating-system user that runs Home Assistant. Existing files receive private permissions when read. Saves use a temporary file and atomic replacement so a failed write retains the previous data. The existing storage format and checksum remain compatible; the checksum does not encrypt credentials. Protect Home Assistant backups and access to the host account.
 
+Development checks use `uv` and the dependencies in `uv.lock`, including Home Assistant. Run `uv sync --frozen`, `uv run --frozen pytest -m github test/`, `uv run --frozen pytest -m github test/check_rule_format.py`, and `uv run --frozen pylint (git ls-files '*.py')` from fish. Update the tested stable Home Assistant release with `uv lock --upgrade-package homeassistant --exclude-newer (date +%F)`, then run the checks again before updating the homelab. CI checks platform imports and client constructor call sites; it does not connect to live Xiaomi devices.
+
+Use homelab firewall rules to restrict device firmware traffic separately. Keep the access that Home Assistant needs for local control and discovery. Test reads, writes, events, and recovery after an outage for each device before blocking its internet access. Deploy a tested commit and retain the previous commit for rollback.
+
 ## Installation
 
 > Home Assistant version requirement:

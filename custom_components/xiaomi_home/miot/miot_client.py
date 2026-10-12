@@ -1336,7 +1336,11 @@ class MIoTClient:
         gw_state: bool, lan_state: bool
     ) -> Optional[bool]:
         if not self.cloud_control_allowed(did):
-            return bool(gw_state or lan_state)
+            gateway = self._device_list_gateway.get(did, {})
+            gateway_usable = (
+                gw_state and gateway.get('specv2_access', False)
+                and gateway.get('group_id') in self._mips_local)
+            return bool(gateway_usable or lan_state)
         if cloud_state is None and not gw_state and not lan_state:
             # Device remove
             return None

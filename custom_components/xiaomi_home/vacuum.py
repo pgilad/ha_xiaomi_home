@@ -291,6 +291,8 @@ class Vacuum(MIoTServiceEntity, StateVacuumEntity):
     else:
 
         @property
+        # Older cores require state because they do not expose activity.
+        # pylint: disable-next=overridden-final-method
         def state(self) -> Optional[str]:
             """The current state of the vacuum."""
             status = self.get_prop_value(prop=self._prop_status)

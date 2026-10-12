@@ -37,14 +37,18 @@ jobs:
       - name: Checkout the repository
         uses: actions/checkout@v5
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pylint
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Install locked test dependencies
+        run: uv sync --frozen
 
       - name: Static analyse the code with pylint
         run: |
-          pylint $(git ls-files '*.py')
+          git ls-files -z '*.py' | xargs -0 uv run --frozen pylint
 
   validate-setup:
     runs-on: ubuntu-latest
@@ -56,12 +60,14 @@ jobs:
         run: |
           export config_path=./test_config
           mkdir $config_path
-          ./install.sh $config_path
-          echo "default_config:" >> $config_path/configuration.yaml
-          echo "logger:" >> $config_path/configuration.yaml
-          echo "  default: info" >> $config_path/configuration.yaml
-          echo "  logs:" >> $config_path/configuration.yaml
-          echo "    custom_components.xiaomi_home: debug" >> $config_path/configuration.yaml
+          ./install.sh "$config_path"
+          cat >> "$config_path/configuration.yaml" <<'EOF'
+          default_config:
+          logger:
+            default: info
+            logs:
+              custom_components.xiaomi_home: debug
+          EOF
 
       - name: Setup Home Assistant
         id: homeassistant

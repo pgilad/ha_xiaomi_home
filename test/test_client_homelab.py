@@ -193,3 +193,16 @@ async def test_partial_cloud_reply_keeps_unresolved_properties(client):
     client._http.get_props_async.return_value = [{**first, 'value': False}]
     assert await client._MIoTClient__refresh_props_from_cloud()
     assert client._refresh_props_list == {'test-device|2|2': second}
+
+
+@pytest.mark.parametrize('supported', [False, True])
+async def test_local_only_gateway_availability_requires_capability(
+    client, supported
+):
+    """An online gateway alone does not mean a local command can be sent."""
+    client._local_only_devices = frozenset(['test-device'])
+    client._device_list_gateway = {'test-device': {
+        'online': True, 'specv2_access': supported, 'group_id': 'test-group'}}
+    client._mips_local = {'test-group': MagicMock()}
+    assert client._MIoTClient__check_device_state(
+        'test-device', True, True, False) is supported
