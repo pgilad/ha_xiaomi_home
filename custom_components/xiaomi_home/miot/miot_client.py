@@ -673,7 +673,7 @@ class MIoTClient:
                     # Device remove or offline
                     _LOGGER.error('device may be removed or offline')
                     self._main_loop.create_task(
-                        await self.__refresh_cloud_device_with_dids_async(
+                        self.__refresh_cloud_device_with_dids_async(
                             dids=[did]))
                 raise MIoTClientError(
                     self.__get_exec_error_with_rc(rc=rc))
@@ -710,7 +710,7 @@ class MIoTClient:
             if self._network.network_status:
                 result = await self._http.get_prop_async(
                     did=did, siid=siid, piid=piid)
-                if result:
+                if result is not None:
                     return result
         except Exception as err:  # pylint: disable=broad-exception-caught
             # Catch all exceptions
@@ -792,7 +792,7 @@ class MIoTClient:
                     # Device remove or offline
                     _LOGGER.error('device removed or offline')
                     self._main_loop.create_task(
-                        await self.__refresh_cloud_device_with_dids_async(
+                        self.__refresh_cloud_device_with_dids_async(
                             dids=[did]))
                 raise MIoTClientError(
                     self.__get_exec_error_with_rc(rc=rc))
