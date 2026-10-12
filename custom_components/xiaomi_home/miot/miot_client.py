@@ -121,6 +121,7 @@ class MIoTClient:
     _entry_data: dict
     _cloud_server: str
     _ctrl_mode: CtrlMode
+    _local_only_devices: frozenset[str]
     # MIoT network monitor
     _network: MIoTNetwork
     # MIoT storage client
@@ -208,6 +209,8 @@ class MIoTClient:
         self._cloud_server = entry_data['cloud_server']
         self._ctrl_mode = CtrlMode.load(
             entry_data.get('ctrl_mode', DEFAULT_CTRL_MODE))
+        self._local_only_devices = frozenset(
+            entry_data.get('local_only_devices', []))
         self._network = network
         self._storage = storage
         self._mips_service = mips_service
@@ -304,7 +307,7 @@ class MIoTClient:
             status=self._network.network_status)
         # Create multi mips local client instance according to the
         # number of hub gateways
-        if self._ctrl_mode == CtrlMode.AUTO:
+        if self.__use_local_control():
             # Central hub gateway ctrl
             if self._cloud_server in SUPPORT_CENTRAL_GATEWAY_CTRL:
                 for info in self._entry_data['home_selected'].values():
@@ -374,7 +377,7 @@ class MIoTClient:
         if self._refresh_cloud_devices_timer:
             self._refresh_cloud_devices_timer.cancel()
             self._refresh_cloud_devices_timer = None
-        if self._ctrl_mode == CtrlMode.AUTO:
+        if self.__use_local_control():
             # Central hub gateway mips
             if self._cloud_server in SUPPORT_CENTRAL_GATEWAY_CTRL:
                 self._mips_service.unsub_service_change(
@@ -509,6 +512,15 @@ class MIoTClient:
     def device_list(self) -> dict:
         return self._device_list_cache
 
+    def cloud_control_allowed(self, did: str) -> bool:
+        """Keep account maintenance separate from device cloud control."""
+        return did not in self._local_only_devices
+
+    def __use_local_control(self, did: Optional[str] = None) -> bool:
+        return self._ctrl_mode == CtrlMode.AUTO or (
+            bool(self._local_only_devices) if did is None
+            else not self.cloud_control_allowed(did))
+
     @property
     def persistent_notify(self) -> Callable:
         return self._persistence_notify
@@ -622,7 +634,7 @@ class MIoTClient:
         if did not in self._device_list_cache:
             raise MIoTClientError(f'did not exist, {did}')
         # Priority local control
-        if self._ctrl_mode == CtrlMode.AUTO:
+        if self.__use_local_control(did):
             # Gateway control
             device_gw = self._device_list_gateway.get(did, None)
             if (
@@ -658,7 +670,8 @@ class MIoTClient:
 
         # Cloud control
         device_cloud = self._device_list_cloud.get(did, None)
-        if device_cloud and device_cloud.get('online', False):
+        if (self.cloud_control_allowed(did)
+                and device_cloud and device_cloud.get('online', False)):
             result = await self._http.set_prop_async(
                 params=[
                     {'did': did, 'siid': siid, 'piid': piid, 'value': value}
@@ -678,6 +691,8 @@ class MIoTClient:
                 raise MIoTClientError(
                     self.__get_exec_error_with_rc(rc=rc))
 
+        if not self.cloud_control_allowed(did):
+            raise MIoTClientError('No local control route is available')
         # Show error message
         raise MIoTClientError(
             f'{self._i18n.translate("miot.client.device_exec_error")}, '
@@ -707,7 +722,8 @@ class MIoTClient:
         # them directly from the hub or device will cause device abnormalities,
         # so obtaining the cache from the cloud is the priority here.
         try:
-            if self._network.network_status:
+            if (self.cloud_control_allowed(did)
+                    and self._network.network_status):
                 result = await self._http.get_prop_async(
                     did=did, siid=siid, piid=piid)
                 if result is not None:
@@ -716,7 +732,7 @@ class MIoTClient:
             # Catch all exceptions
             _LOGGER.error(
                 'client get prop from cloud error: %s', type(err).__name__)
-        if self._ctrl_mode == CtrlMode.AUTO:
+        if self.__use_local_control(did):
             # Central hub gateway
             device_gw = self._device_list_gateway.get(did, None)
             if (
@@ -735,6 +751,8 @@ class MIoTClient:
             if device_lan and device_lan.get('online', False):
                 return await self._miot_lan.get_prop_async(
                     did=did, siid=siid, piid=piid)
+        if not self.cloud_control_allowed(did):
+            raise MIoTClientError('No local control route is available')
         # _LOGGER.error(
         #     'client get prop failed, no-link, %s.%d.%d', did, siid, piid)
         return None
@@ -747,7 +765,7 @@ class MIoTClient:
 
         device_gw = self._device_list_gateway.get(did, None)
         # Priority local control
-        if self._ctrl_mode == CtrlMode.AUTO:
+        if self.__use_local_control(did):
             if (
                 device_gw and device_gw.get('online', False)
                 and device_gw.get('specv2_access', False)
@@ -780,7 +798,8 @@ class MIoTClient:
                     self.__get_exec_error_with_rc(rc=rc))
         # Cloud control
         device_cloud = self._device_list_cloud.get(did, None)
-        if device_cloud and device_cloud.get('online', False):
+        if (self.cloud_control_allowed(did)
+                and device_cloud and device_cloud.get('online', False)):
             result: dict = await self._http.action_async(
                 did=did, siid=siid, aiid=aiid, in_list=in_list)
             if result:
@@ -796,6 +815,8 @@ class MIoTClient:
                             dids=[did]))
                 raise MIoTClientError(
                     self.__get_exec_error_with_rc(rc=rc))
+        if not self.cloud_control_allowed(did):
+            raise MIoTClientError('No local control route is available')
         # TODO: Show error message
         _LOGGER.error('client action failed')
         return []
@@ -963,7 +984,7 @@ class MIoTClient:
             return
         from_old: Optional[str] = self._sub_source_list.get(did, None)
         from_new: Optional[str] = None
-        if self._ctrl_mode == CtrlMode.AUTO:
+        if self.__use_local_control(did):
             if (
                 did in self._device_list_gateway
                 and self._device_list_gateway[did].get('online', False)
@@ -978,7 +999,8 @@ class MIoTClient:
                 from_new = 'lan'
 
         if (
-            from_new is None
+            self.cloud_control_allowed(did)
+            and from_new is None
             and did in self._device_list_cloud
             and self._device_list_cloud[did].get('online', False)
         ):
@@ -1081,6 +1103,7 @@ class MIoTClient:
                 state_old: Optional[bool] = self._device_list_cache[did].get(
                     'online', None)
                 state_new: Optional[bool] = self.__check_device_state(
+                    did,
                     False,
                     self._device_list_gateway.get(
                         did, {}).get('online', False),
@@ -1126,6 +1149,7 @@ class MIoTClient:
                 state_old: Optional[bool] = self._device_list_cache.get(
                     did, {}).get('online', None)
                 state_new: Optional[bool] = self.__check_device_state(
+                    did,
                     self._device_list_cloud.get(did, {}).get('online', None),
                     False,
                     self._device_list_lan.get(did, {}).get('online', False))
@@ -1157,7 +1181,8 @@ class MIoTClient:
                     'model': info['model'],
                     'connect_type': info['connect_type']}
                 for did, info in self._device_list_cache.items()
-                if 'token' in info and 'connect_type' in info
+                if self.__use_local_control(did)
+                and 'token' in info and 'connect_type' in info
                 and info['connect_type'] in [0, 8, 12, 23]
             })
         else:
@@ -1171,6 +1196,7 @@ class MIoTClient:
                 state_old: Optional[bool] = self._device_list_cache.get(
                     did, {}).get('online', None)
                 state_new: Optional[bool] = self.__check_device_state(
+                    did,
                     self._device_list_cloud.get(did, {}).get('online', None),
                     self._device_list_gateway.get(
                         did, {}).get('online', False),
@@ -1202,6 +1228,7 @@ class MIoTClient:
         state_old: Optional[bool] = self._device_list_cache[did].get(
             'online', None)
         state_new: Optional[bool] = self.__check_device_state(
+            did,
             cloud_state_new,
             self._device_list_gateway.get(did, {}).get('online', False),
             self._device_list_lan.get(did, {}).get('online', False))
@@ -1265,6 +1292,7 @@ class MIoTClient:
         state_old: Optional[bool] = self._device_list_cache[did].get(
             'online', None)
         state_new: Optional[bool] = self.__check_device_state(
+            did,
             self._device_list_cloud.get(did, {}).get('online', None),
             self._device_list_gateway.get(did, {}).get('online', False),
             lan_state_new)
@@ -1304,8 +1332,11 @@ class MIoTClient:
 
     @final
     def __check_device_state(
-        self, cloud_state: Optional[bool], gw_state: bool, lan_state: bool
+        self, did: str, cloud_state: Optional[bool],
+        gw_state: bool, lan_state: bool
     ) -> Optional[bool]:
+        if not self.cloud_control_allowed(did):
+            return bool(gw_state or lan_state)
         if cloud_state is None and not gw_state and not lan_state:
             # Device remove
             return None
@@ -1386,6 +1417,7 @@ class MIoTClient:
             # Update sub from
             self.__update_device_msg_sub(did=did)
             state_new: Optional[bool] = self.__check_device_state(
+                did,
                 cloud_state_new,
                 self._device_list_gateway.get(did, {}).get('online', False),
                 self._device_list_lan.get(did, {}).get('online', False))
@@ -1440,7 +1472,7 @@ class MIoTClient:
         await self.__update_devices_from_cloud_async(cloud_list=cloud_list)
         # Update lan device
         if (
-            self._ctrl_mode == CtrlMode.AUTO
+            self.__use_local_control()
             and self._miot_lan.init_done
         ):
             self._miot_lan.update_devices(devices={
@@ -1449,7 +1481,8 @@ class MIoTClient:
                     'model': info['model'],
                     'connect_type': info['connect_type']}
                 for did, info in self._device_list_cache.items()
-                if 'token' in info and 'connect_type' in info
+                if self.__use_local_control(did)
+                and 'token' in info and 'connect_type' in info
                 and info['connect_type'] in [0, 8, 12, 23]
             })
 
@@ -1514,6 +1547,7 @@ class MIoTClient:
             self.__update_device_msg_sub(did=did)
             state_old: Optional[bool] = info.get('online', None)
             state_new: Optional[bool] = self.__check_device_state(
+                did,
                 self._device_list_cloud.get(did, {}).get('online', None),
                 gw_state_new,
                 self._device_list_lan.get(did, {}).get('online', False))
@@ -1538,6 +1572,7 @@ class MIoTClient:
             state_old: Optional[bool] = self._device_list_cache[did].get(
                 'online', None)
             state_new: Optional[bool] = self.__check_device_state(
+                did,
                 self._device_list_cloud.get(did, {}).get('online', None),
                 info.get('online', False),
                 self._device_list_lan.get(did, {}).get('online', False))
@@ -1616,20 +1651,17 @@ class MIoTClient:
         if not self._network.network_status:
             return False
 
-        request_list = None
-        if len(self._refresh_props_list) < patch_len:
-            request_list = self._refresh_props_list
-            self._refresh_props_list = {}
-        else:
-            request_list = {}
-            for _ in range(patch_len):
-                key, value = self._refresh_props_list.popitem()
-                request_list[key] = value
+        keys = [key for key, params in self._refresh_props_list.items()
+                if self.cloud_control_allowed(params['did'])][:patch_len]
+        request_list = {key: self._refresh_props_list.pop(key) for key in keys}
+        if not request_list:
+            return False
         try:
             results = await self._http.get_props_async(
                 params=list(request_list.values()))
             if not results:
                 raise MIoTClientError('get_props_async failed')
+            succeeded = False
             for result in results:
                 if (
                     'did' not in result
@@ -1638,14 +1670,16 @@ class MIoTClient:
                     or 'value' not in result
                 ):
                     continue
-                request_list.pop(
-                    f'{result["did"]}|{result["siid"]}|{result["piid"]}',
-                    None)
+                key = f'{result["did"]}|{result["siid"]}|{result["piid"]}'
+                if key not in request_list:
+                    continue
+                request_list.pop(key)
                 self.__on_prop_msg(params=result, ctx=None)
+                succeeded = True
             if request_list:
                 _LOGGER.info('refresh props failed')
-                request_list = None
-            return True
+                self._refresh_props_list.update(request_list)
+            return succeeded
         except Exception as err:  # pylint:disable=broad-exception-caught
             _LOGGER.error(
                 'refresh props error: %s', type(err).__name__)
@@ -1655,93 +1689,49 @@ class MIoTClient:
 
     @final
     async def __refresh_props_from_gw(self) -> bool:
-        if not self._mips_local or not self._device_list_gateway:
-            return False
-        request_list = {}
-        succeed_once = False
-        for key in list(self._refresh_props_list.keys()):
-            did = key.split('|')[0]
-            if did in request_list:
-                # NOTICE: A device only requests once a cycle, continuous
-                # acquisition of properties can cause device exceptions.
-                continue
-            params = self._refresh_props_list.pop(key)
-            device_gw = self._device_list_gateway.get(did, None)
-            if not device_gw:
-                # Device not exist
-                continue
-            mips_gw = self._mips_local.get(device_gw['group_id'], None)
-            if not mips_gw:
-                _LOGGER.error('mips gateway not exist')
-                continue
-            request_list[did] = {
-                **params,
-                'fut': mips_gw.get_prop_async(
-                    did=did, siid=params['siid'], piid=params['piid'],
-                    timeout_ms=6000)}
-        results = await asyncio.gather(
-            *[v['fut'] for v in request_list.values()])
-        for (did, param), result in zip(request_list.items(), results):
-            if result is None:
-                # Don't use "not result", it will be skipped when result
-                # is 0, false
-                continue
-            self.__on_prop_msg(
-                params={
-                    'did': did,
-                    'siid': param['siid'],
-                    'piid': param['piid'],
-                    'value': result},
-                ctx=None)
-            succeed_once = True
-        if succeed_once:
-            return True
-        _LOGGER.info('refresh props failed')
-        # Add failed request back to the list
-        self._refresh_props_list.update(request_list)
-        return False
+        return await self.__refresh_props_from_local(gateway=True)
 
     @final
     async def __refresh_props_from_lan(self) -> bool:
-        if not self._miot_lan.init_done or len(self._mips_local) > 0:
+        if not self._miot_lan.init_done:
             return False
-        request_list = {}
-        succeed_once = False
-        for key in list(self._refresh_props_list.keys()):
-            did = key.split('|')[0]
-            if did in request_list:
-                # NOTICE: A device only requests once a cycle, continuous
-                # acquisition of properties can cause device exceptions.
+        return await self.__refresh_props_from_local(gateway=False)
+
+    async def __refresh_props_from_local(self, gateway: bool) -> bool:
+        requests = []
+        requested_devices = set()
+        for key, params in list(self._refresh_props_list.items()):
+            did = params['did']
+            if not self.__use_local_control(did) or did in requested_devices:
                 continue
-            params = self._refresh_props_list.pop(key)
-            if did not in self._device_list_lan:
+            device = (self._device_list_gateway if gateway
+                      else self._device_list_lan).get(did, {})
+            if not device.get('online', False):
                 continue
-            request_list[did] = {
-                **params,
-                'fut': self._miot_lan.get_prop_async(
-                    did=did, siid=params['siid'], piid=params['piid'],
-                    timeout_ms=6000)}
+            if gateway:
+                transport = self._mips_local.get(device.get('group_id'))
+                if not device.get('specv2_access', False):
+                    continue
+            else:
+                transport = self._miot_lan
+            if transport is None:
+                continue
+            # Limit direct reads per device to avoid firmware overload.
+            requested_devices.add(did)
+            requests.append((key, params, transport.get_prop_async(
+                did=did, siid=params['siid'], piid=params['piid'],
+                timeout_ms=6000)))
         results = await asyncio.gather(
-            *[v['fut'] for v in request_list.values()])
-        for (did, param), result in zip(request_list.items(), results):
-            if result is None:
-                # Don't use "not result", it will be skipped when result
-                # is 0, false
+            *(request[2] for request in requests), return_exceptions=True)
+        succeeded = False
+        for (key, params, unused_request), result in zip(requests, results):
+            if isinstance(result, BaseException) or result is None:
                 continue
-            self.__on_prop_msg(
-                params={
-                    'did': did,
-                    'siid': param['siid'],
-                    'piid': param['piid'],
-                    'value': result},
-                ctx=None)
-            succeed_once = True
-        if succeed_once:
-            return True
-        _LOGGER.info('refresh props failed')
-        # Add failed request back to the list
-        self._refresh_props_list.update(request_list)
-        return False
+            if self._refresh_props_list.get(key) is params:
+                self._refresh_props_list.pop(key)
+            self.__on_prop_msg(params={**params, 'value': result}, ctx=None)
+            succeeded = True
+        return succeeded
 
     @final
     async def __refresh_props_handler(self) -> None:

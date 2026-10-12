@@ -126,7 +126,8 @@
                     "update_trans_rules": "エンティティ変換ルールを更新する",
                     "update_lan_ctrl_config": "LAN制御構成を更新する",
                     "network_detect_config": "統合ネットワーク構成",
-                    "cover_dead_zone_width": "カーテンの死角幅"
+                    "cover_dead_zone_width": "カーテンの死角幅",
+                    "local_only_devices": "Use local control only for selected devices"
                 }
             },
             "update_user_info": {

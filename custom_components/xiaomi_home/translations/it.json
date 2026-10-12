@@ -126,7 +126,8 @@
                     "update_trans_rules": "Aggiorna le regole di conversione delle entità",
                     "update_lan_ctrl_config": "Aggiorna configurazione del controllo LAN",
                     "network_detect_config": "Configurazione di Rete Integrata",
-                    "cover_dead_zone_width": "Larghezza dell’angolo cieco della tenda"
+                    "cover_dead_zone_width": "Larghezza dell’angolo cieco della tenda",
+                    "local_only_devices": "Use local control only for selected devices"
                 }
             },
             "update_user_info": {

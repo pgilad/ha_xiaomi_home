@@ -126,7 +126,8 @@
                     "update_trans_rules": "Atualizar regras de conversão de entidades",
                     "update_lan_ctrl_config": "Atualizar configuração de controlo LAN",
                     "network_detect_config": "Configuração de Rede Integrada",
-                    "cover_dead_zone_width": "Largura da zona cega da cortina"
+                    "cover_dead_zone_width": "Largura da zona cega da cortina",
+                    "local_only_devices": "Use local control only for selected devices"
                 }
             },
             "update_user_info": {

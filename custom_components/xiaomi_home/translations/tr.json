@@ -126,7 +126,8 @@
                     "update_trans_rules": "Varlık dönüştürme kurallarını güncelle",
                     "update_lan_ctrl_config": "LAN kontrol yapılandırmasını güncelle",
                     "network_detect_config": "Entegre ağ yapılandırması",
-                    "cover_dead_zone_width": "Perde ölü bölge genişliği"
+                    "cover_dead_zone_width": "Perde ölü bölge genişliği",
+                    "local_only_devices": "Use local control only for selected devices"
                 }
             },
             "update_user_info": {

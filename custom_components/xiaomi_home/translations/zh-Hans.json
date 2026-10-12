@@ -126,7 +126,8 @@
                     "update_trans_rules": "更新实体转换规则",
                     "update_lan_ctrl_config": "更新局域网控制配置",
                     "network_detect_config": "集成网络配置",
-                    "cover_dead_zone_width": "窗帘盲区宽度"
+                    "cover_dead_zone_width": "窗帘盲区宽度",
+                    "local_only_devices": "Use local control only for selected devices"
                 }
             },
             "update_user_info": {

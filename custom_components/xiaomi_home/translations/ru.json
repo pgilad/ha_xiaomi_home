@@ -126,7 +126,8 @@
                     "update_trans_rules": "Обновить правила преобразования сущностей",
                     "update_lan_ctrl_config": "Обновить конфигурацию управления LAN",
                     "network_detect_config": "Интегрированная Сетевая Конфигурация",
-                    "cover_dead_zone_width": "Ширина «мертвой зоны» шторы"
+                    "cover_dead_zone_width": "Ширина «мертвой зоны» шторы",
+                    "local_only_devices": "Use local control only for selected devices"
                 }
             },
             "update_user_info": {

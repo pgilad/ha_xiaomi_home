@@ -1309,6 +1309,13 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         'network_detect_config',
                         default=self._opt_network_detect_cfg  # type: ignore
                     ): bool,
+                    vol.Optional(
+                        'local_only_devices',
+                        default=self._entry_data.get('local_only_devices', []),
+                    ): cv.multi_select({
+                        did: info.get('name', did)
+                        for did, info in self._miot_client.device_list.items()
+                    }),
                     # Device info configure
                     vol.Required(
                         'update_devices',
@@ -1359,6 +1366,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 },
                 last_step=False,
             )
+        local_only_devices = user_input.get(
+            'local_only_devices',
+            self._entry_data.get('local_only_devices', []))
+        if local_only_devices != self._entry_data.get('local_only_devices', []):
+            self._entry_data['local_only_devices'] = local_only_devices
+            self._need_reload = True
         self._lang_new = user_input.get(
             'integration_language', self._integration_language)
         self._update_user_info = user_input.get(

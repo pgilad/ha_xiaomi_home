@@ -126,7 +126,8 @@
                     "update_trans_rules": "Entitätskonvertierungsregeln aktualisieren",
                     "update_lan_ctrl_config": "LAN-Steuerungskonfiguration aktualisieren",
                     "network_detect_config": "Integrierte Netzwerkkonfiguration",
-                    "cover_dead_zone_width": "Die Breite des toten Winkels des Vorhangs"
+                    "cover_dead_zone_width": "Die Breite des toten Winkels des Vorhangs",
+                    "local_only_devices": "Use local control only for selected devices"
                 }
             },
             "update_user_info": {

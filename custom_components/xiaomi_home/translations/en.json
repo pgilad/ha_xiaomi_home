@@ -114,7 +114,7 @@
             },
             "config_options": {
                 "title": "Configuration Options",
-                "description": "### Hello, {nick_name}\r\n\r\nXiaomi ID: {uid}\r\nCurrent Login Region: {cloud_server}\r\nIntegration Instance ID: {instance_id}\r\n\r\nPlease select the options you need to configure, then click NEXT.",
+                "description": "### Hello, {nick_name}\r\n\r\nXiaomi ID: {uid}\r\nCurrent Login Region: {cloud_server}\r\nIntegration Instance ID: {instance_id}\r\n\r\nPlease select the options you need to configure, then click NEXT.\\r\\nDevices selected for local control only do not send property reads or commands through Xiaomi Cloud. If no local route is available, they are unavailable. Account maintenance and device discovery still use the cloud.",
                 "data": {
                     "integration_language": "Integration Language",
                     "update_user_info": "Update user information",
@@ -126,7 +126,8 @@
                     "update_trans_rules": "Update entity conversion rules",
                     "update_lan_ctrl_config": "Update LAN control configuration",
                     "network_detect_config": "Integrated network configuration",
-                    "cover_dead_zone_width": "Cover dead zone width"
+                    "cover_dead_zone_width": "Cover dead zone width",
+                    "local_only_devices": "Use local control only for selected devices"
                 }
             },
             "update_user_info": {

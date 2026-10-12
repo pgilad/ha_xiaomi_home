@@ -14,6 +14,8 @@ Authentication codes, token values, and full device payloads are omitted from th
 
 In the integration's network configuration, enable **Disable network probes** to stop automatic ping and HTTP availability checks. This global setting also skips the optional dependency checks. Local interface discovery continues. With probes disabled, the integration attempts cloud connections when a local interface is available; each connection reports its own errors. Custom addresses enable only the probe types you enter. Clear the address field with probes enabled to restore the defaults.
 
+In **CONFIGURE**, select devices under **Use local control only for selected devices** to block cloud property reads, writes, actions, and event/property subscriptions for those devices. This setting overrides Cloud control mode for the selected devices. Devices without a working local route are unavailable and commands fail with a local-route error. Other devices keep their existing routing. Account login, token renewal, certificates, device discovery, and MQTT account connections still use Xiaomi Cloud. This is not a fully disconnected mode and does not stop firmware traffic. Direct reads remain limited per device to avoid firmware overload.
+
 ## Installation
 
 > Home Assistant version requirement:
